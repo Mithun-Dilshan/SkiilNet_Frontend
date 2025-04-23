@@ -8,6 +8,7 @@ import LearningPlanCard, { LearningPlan } from '../learning/LearningPlanCard';
 import ProgressUpdateCard, { ProgressUpdate } from '../progress/ProgressUpdateCard';
 import EditProfileModal from '../modals/EditProfileModal';
 import CreatePostModal from '../modals/CreatePostModal';
+import CreateLearningPlanModal from '../modals/CreateLearningPlanModal';
 
 type UserProfileData = {
   id: string;
@@ -40,6 +41,7 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates }: UserProfile
   const [followersCount, setFollowersCount] = useState(userProfile.followers);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
+  const [showCreatePlans, setShowCreatePlans] = useState(false);
   
   const isCurrentUser = user?.id === userProfile.id;
   
@@ -209,7 +211,7 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates }: UserProfile
                 {isCurrentUser && (
                   
                   <button 
-                    onClick={() => setShowCreatePost(true)}
+                    onClick={() => setShowCreatePlans(true)}
                     className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-full text-sm font-medium hover:bg-indigo-700 transition"
                   >
                     Create Your First Post
@@ -221,6 +223,17 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates }: UserProfile
             )}
           </div>
         )}
+
+         {/* Create Post Button (only shown on posts tab for current user) */}
+      {isCurrentUser && activeTab === 'plans' && (
+        <button
+          onClick={() => setShowCreatePlans(true)}
+          className="w-full py-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition flex items-center justify-center space-x-2"
+        >
+          <Plus className="h-5 w-5" />
+          <span>Create New Plans</span>
+        </button>
+      )}
         
         {activeTab === 'plans' && (
           <div className="space-y-6">
@@ -335,6 +348,7 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates }: UserProfile
       {/* Modals */}
       {showEditProfile && <EditProfileModal onClose={() => setShowEditProfile(false)} />}
       {showCreatePost && <CreatePostModal onClose={() => setShowCreatePost(false)} />}
+      {showCreatePlans && <CreateLearningPlanModal onClose={() => setShowCreatePlans(false)} />}
     </div>
   );
 };

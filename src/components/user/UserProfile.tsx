@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Edit, Settings, Users, BookOpen, Activity, Clock, Heart } from 'lucide-react';
+import { Edit, Settings, Users, BookOpen, Activity, Clock, Heart, Plus } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import SkillPostCard, { Post } from '../posts/SkillPostCard';
 import LearningPlanCard, { LearningPlan } from '../learning/LearningPlanCard';
 import ProgressUpdateCard, { ProgressUpdate } from '../progress/ProgressUpdateCard';
+import EditProfileModal from '../modals/EditProfileModal';
+import CreatePostModal from '../modals/CreatePostModal';
 
 type UserProfileData = {
   id: string;
@@ -36,6 +38,8 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates }: UserProfile
   const [activeTab, setActiveTab] = useState<'posts' | 'plans' | 'progress' | 'stats'>('posts');
   const [isFollowing, setIsFollowing] = useState(userProfile.isFollowing);
   const [followersCount, setFollowersCount] = useState(userProfile.followers);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showCreatePost, setShowCreatePost] = useState(false);
   
   const isCurrentUser = user?.id === userProfile.id;
   
@@ -78,7 +82,10 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates }: UserProfile
           <div className="flex justify-end mb-10 md:mb-0">
             {isCurrentUser ? (
               <div className="flex space-x-3">
-                <button className="px-4 py-2 rounded-full border border-gray-300 dark:border-slate-600 text-sm font-medium flex items-center space-x-1 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                <button 
+                  onClick={() => setShowEditProfile(true)}
+                  className="px-4 py-2 rounded-full border border-gray-300 dark:border-slate-600 text-sm font-medium flex items-center space-x-1 hover:bg-gray-100 dark:hover:bg-slate-700 transition"
+                >
                   <Edit className="h-4 w-4" />
                   <span>Edit Profile</span>
                 </button>
@@ -181,6 +188,17 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates }: UserProfile
         </div>
       </div>
       
+      {/* Create Post Button (only shown on posts tab for current user) */}
+      {isCurrentUser && activeTab === 'posts' && (
+        <button
+          onClick={() => setShowCreatePost(true)}
+          className="w-full py-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition flex items-center justify-center space-x-2"
+        >
+          <Plus className="h-5 w-5" />
+          <span>Create New Post</span>
+        </button>
+      )}
+      
       {/* Tab Content */}
       <div className="min-h-[300px]">
         {activeTab === 'posts' && (
@@ -189,7 +207,11 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates }: UserProfile
               <div className={`rounded-xl ${theme === 'dark' ? 'bg-slate-800' : 'bg-white'} shadow-md p-8 text-center`}>
                 <p className="text-gray-500 dark:text-gray-400">No skill posts yet</p>
                 {isCurrentUser && (
-                  <button className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-full text-sm font-medium hover:bg-indigo-700 transition">
+                  
+                  <button 
+                    onClick={() => setShowCreatePost(true)}
+                    className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-full text-sm font-medium hover:bg-indigo-700 transition"
+                  >
                     Create Your First Post
                   </button>
                 )}
@@ -309,6 +331,10 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates }: UserProfile
           </div>
         )}
       </div>
+      
+      {/* Modals */}
+      {showEditProfile && <EditProfileModal onClose={() => setShowEditProfile(false)} />}
+      {showCreatePost && <CreatePostModal onClose={() => setShowCreatePost(false)} />}
     </div>
   );
 };

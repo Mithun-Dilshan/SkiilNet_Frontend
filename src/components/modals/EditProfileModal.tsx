@@ -16,6 +16,7 @@ const EditProfileModal = ({ onClose }: EditProfileModalProps) => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(user?.profilePicture || null);
   const [skills, setSkills] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -45,11 +46,44 @@ const EditProfileModal = ({ onClose }: EditProfileModalProps) => {
       return;
     }
     
+    setIsSubmitting(true);
+    
     try {
-      await updateProfile({ name, bio, profilePicture, skills });
+      // Use the provided API endpoint to create the profile
+      const userId = user?.id || '9396b756-d8ac-4883-9266-3a51c1054b3e'; // Use the user ID from context or fallback
+      
+      // Prepare the data for API call
+      const formData = new FormData();
+      formData.append('bio', bio);
+      if (profilePicture) {
+        formData.append('profilePicture', profilePicture);
+      }
+      formData.append('name', name);
+      if (skills.length > 0) {
+        formData.append('skills', JSON.stringify(skills));
+      }
+      
+      // Make the API call
+      const response = await fetch(`http://localhost:8080/api/users/${userId}/profile`, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to create profile');
+      }
+      
+      // If auth context has an updateProfile method, update the local user data too
+      if (updateProfile) {
+        await updateProfile({ name, bio, profilePicture, skills });
+      }
+      
       onClose();
     } catch (err) {
-      setError('Failed to update profile');
+      console.error('Error creating profile:', err);
+      setError('Failed to create profile. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
   
@@ -66,7 +100,7 @@ const EditProfileModal = ({ onClose }: EditProfileModalProps) => {
       <div className={`relative w-full max-w-lg rounded-2xl ${theme === 'dark' ? 'bg-slate-800' : 'bg-white'} shadow-xl`}>
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700">
-          <h2 className="text-xl font-semibold">Edit Profile</h2>
+          <h2 className="text-xl font-semibold">Create Profile</h2>
           <button 
             onClick={onClose}
             className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 transition"
@@ -144,7 +178,7 @@ const EditProfileModal = ({ onClose }: EditProfileModalProps) => {
           <div className="mb-6">
             <label className="block text-sm font-medium mb-2">Skills</label>
             <div className="flex flex-wrap gap-2">
-              {['English', 'Maths', 'Science'].map(skill => (
+              {['English', 'Maths', 'Science', 'History', 'Art', 'Music', 'Programming', 'Physics', 'Chemistry'].map(skill => (
                 <button
                   key={skill}
                   type="button"
@@ -174,14 +208,18 @@ const EditProfileModal = ({ onClose }: EditProfileModalProps) => {
               type="button"
               onClick={onClose}
               className="px-4 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition"
+              disabled={isSubmitting}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition"
+              className={`px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition ${
+                isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
+              }`}
+              disabled={isSubmitting}
             >
-              Save Changes
+              {isSubmitting ? 'Creating...' : 'Create Profile'}
             </button>
           </div>
         </form>

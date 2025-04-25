@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Filter } from 'lucide-react';
+import { Sparkles, Filter, UserPlus } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import SkillPostCard, { Post } from '../components/posts/SkillPostCard';
 import LearningPlanCard, { LearningPlan } from '../components/learning/LearningPlanCard';
 import ProgressUpdateCard, { ProgressUpdate } from '../components/progress/ProgressUpdateCard';
+import EditProfileModal from '../components/modals/EditProfileModal';
 
 // Mock data
 const mockPosts: Post[] = [
@@ -130,6 +131,7 @@ const HomePage = () => {
   const [feed, setFeed] = useState<(Post | LearningPlan | ProgressUpdate)[]>([]);
   const [loading, setLoading] = useState(true);
   const [feedFilter, setFeedFilter] = useState<'all' | 'posts' | 'plans' | 'progress'>('all');
+  const [showProfileModal, setShowProfileModal] = useState(false);
   
   useEffect(() => {
     // Simulate API call to get feed
@@ -160,7 +162,17 @@ const HomePage = () => {
   
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Your Feed</h1>
+      {/* Header with Create Profile Button */}
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Your Feed</h1>
+        <button 
+          onClick={() => setShowProfileModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 transition"
+        >
+          <UserPlus className="h-4 w-4" />
+          <span>Create Profile</span>
+        </button>
+      </div>
       
       {/* Feed Filters */}
       <div className="flex items-center space-x-4 mb-6 overflow-x-auto pb-2">
@@ -271,6 +283,9 @@ const HomePage = () => {
           })}
         </div>
       )}
+      
+      {/* Profile Modal */}
+      {showProfileModal && <EditProfileModal onClose={() => setShowProfileModal(false)} />}
     </div>
   );
 };

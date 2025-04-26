@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, Clock, Users, Plus } from 'lucide-react';
+import { BookOpen, Clock, Users, Plus, Edit, Star } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getAllLearningPlans, getUserLearningPlans, LearningPlan } from '../services/api/learningPlans';
@@ -148,7 +148,7 @@ const LearningPlanListPage = () => {
                   </p>
                 </Link>
 
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center mb-2">
                   <div className="flex space-x-4">
                     <div className="flex items-center space-x-1 text-gray-500 dark:text-gray-400">
                       <BookOpen className="h-4 w-4" />
@@ -158,6 +158,12 @@ const LearningPlanListPage = () => {
                       <Clock className="h-4 w-4" />
                       <span className="text-xs">{plan.estimatedDays} days</span>
                     </div>
+                    {user && plan.userId === user.id && (
+                      <Link to={`/edit-learning-plan/${plan.id}`} className="flex items-center space-x-1 text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300">
+                        <Edit className="h-4 w-4" />
+                        <span className="text-xs">Edit</span>
+                      </Link>
+                    )}
                   </div>
 
                   <Link
@@ -180,6 +186,22 @@ const LearningPlanListPage = () => {
                     <span className="text-xs text-gray-600 dark:text-gray-300">{plan.user?.name || 'Unknown User'}</span>
                   </Link>
                 </div>
+
+                {/* Follow button for plans that aren't the user's */}
+                {user && plan.userId !== user.id && (
+                  <div className="mb-3">
+                    <button
+                      className={`w-full flex justify-center items-center space-x-1 text-xs py-1 px-2 rounded ${
+                        plan.following
+                          ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                          : 'bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-700 dark:hover:bg-indigo-600'
+                      }`}
+                    >
+                      <Star className={`h-3 w-3 ${plan.following ? 'fill-indigo-500' : ''}`} />
+                      <span>{plan.following ? 'Following' : 'Follow Plan'}</span>
+                    </button>
+                  </div>
+                )}
 
                 {/* Progress bar */}
                 <div className="mt-4">

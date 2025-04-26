@@ -12,6 +12,7 @@ import LearningPlanPage from './pages/LearningPlanPage';
 import LearningPlanListPage from './pages/LearningPlanListPage';
 import TestLearningPlanPage from './pages/TestLearningPlanPage';
 import CreateLearningPlanPage from './pages/CreateLearningPlanPage';
+import EditLearningPlanPage from './pages/EditLearningPlanPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 function App() {
@@ -32,6 +33,7 @@ function App() {
                   <Route path="/my-plans" element={<LearningPlanListPage />} />
                   <Route path="/test-learning-plans" element={<TestLearningPlanPage />} />
                   <Route path="/create-learning-plan" element={<CreateLearningPlanPage />} />
+                  <Route path="/edit-learning-plan/:id" element={<EditLearningPlanPage />} />
                 </Route>
               </Route>
             </Routes>

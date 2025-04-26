@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const instance = axios.create({
-  baseURL: 'http://localhost:8080',  // Your Spring Boot backend URL
+  baseURL: 'http://localhost:8080/api',  // Updated to include /api prefix to match Spring Boot controller paths
   headers: {
     'Content-Type': 'application/json',
   },
@@ -13,7 +13,7 @@ instance.interceptors.request.use(
   (config) => {
     // You can add auth tokens here if needed
     const token = localStorage.getItem('token');
-    if (token) {
+    if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;

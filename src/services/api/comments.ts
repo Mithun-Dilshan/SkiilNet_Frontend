@@ -15,21 +15,21 @@ export type CommentRequest = {
 
 const commentsApi = {
   createComment: async (postId: string, commentData: CommentRequest): Promise<Comment> => {
-    const response = await axios.post(`/api/comments/${postId}`, commentData);
-    return response.data;
+    const response = await axios.post(`/comments/${postId}`, commentData);
+    return response.data as Comment;
   },
 
   getCommentsByPostId: async (postId: string): Promise<Comment[]> => {
-    const response = await axios.get(`/api/comments/${postId}`);
-    return response.data;
+    const response = await axios.get(`/comments/${postId}`);
+    return response.data as Comment[];
   },
 
   updateComment: async (commentId: string, userId: string, commentData: CommentRequest): Promise<void> => {
-    await axios.put(`/api/comments/${commentId}/${userId}`, commentData);
+    await axios.put(`/comments/${commentId}/${userId}`, commentData);
   },
 
   deleteComment: async (commentId: string, userId: string): Promise<void> => {
-    await axios.delete(`/api/comments/${commentId}/${userId}`);
+    await axios.delete(`/comments/${commentId}/${userId}`);
   }
 };
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Filter } from 'lucide-react';
+import { Sparkles, Filter, User } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import SkillPostCard from '../components/posts/SkillPostCard';
 import CreatePost from '../components/posts/CreatePost';
@@ -21,6 +21,7 @@ interface FeedPost extends Post, ContentBase {
     profilePicture?: string;
   };
 }
+
 
 interface LearningPlan extends ContentBase {
   type: 'plan';
@@ -140,6 +141,8 @@ const mockUpdates: ProgressUpdate[] = [
 ];
 
 const HomePage = () => {
+
+
   const { theme } = useTheme();
   const [feed, setFeed] = useState<(FeedPost | LearningPlan | ProgressUpdate)[]>([]);
   const [loading, setLoading] = useState(true);

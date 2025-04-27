@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Upload, Camera } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -14,8 +14,19 @@ const EditProfileModal = ({ onClose }: EditProfileModalProps) => {
   const [bio, setBio] = useState(user?.bio || '');
   const [profilePicture, setProfilePicture] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(user?.profilePicture || null);
-  const [skills, setSkills] = useState<string[]>([]);
+  const [skills, setSkills] = useState<string[]>(user?.skills || []);
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Update local state when user data changes
+  useEffect(() => {
+    if (user) {
+      setName(user.name || '');
+      setBio(user.bio || '');
+      setPreviewUrl(user.profilePicture || null);
+      setSkills(user.skills || []);
+    }
+  }, [user]);
   
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -28,6 +39,7 @@ const EditProfileModal = ({ onClose }: EditProfileModalProps) => {
         setError('Only JPG and PNG files are allowed');
         return;
       }
+      
       setProfilePicture(file);
       setPreviewUrl(URL.createObjectURL(file));
       setError(null);
@@ -36,20 +48,36 @@ const EditProfileModal = ({ onClose }: EditProfileModalProps) => {
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (!name.trim()) {
       setError('Name is required');
       return;
     }
+    
     if (bio.length > 500) {
       setError('Bio must be less than 500 characters');
       return;
     }
     
+    setIsSubmitting(true);
+    setError(null);
+    
     try {
-      await updateProfile({ name, bio, profilePicture, skills });
+      // Call the updateProfile function from AuthContext
+      await updateProfile({ 
+        name, 
+        bio, 
+        profilePicture, 
+        skills 
+      });
+      
+      // Close the modal on success
       onClose();
     } catch (err) {
-      setError('Failed to update profile');
+      console.error('Error updating profile:', err);
+      setError('Failed to update profile. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
   
@@ -61,6 +89,9 @@ const EditProfileModal = ({ onClose }: EditProfileModalProps) => {
     );
   };
   
+  // Default skills list - in a real app this would come from your API
+  const availableSkills = ['English', 'Maths', 'Science', 'History', 'Geography', 'Art', 'Music'];
+  
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className={`relative w-full max-w-lg rounded-2xl ${theme === 'dark' ? 'bg-slate-800' : 'bg-white'} shadow-xl`}>
@@ -69,6 +100,7 @@ const EditProfileModal = ({ onClose }: EditProfileModalProps) => {
           <h2 className="text-xl font-semibold">Edit Profile</h2>
           <button 
             onClick={onClose}
+            disabled={isSubmitting}
             className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 transition"
           >
             <X className="h-5 w-5" />
@@ -97,6 +129,7 @@ const EditProfileModal = ({ onClose }: EditProfileModalProps) => {
                   type="file"
                   accept="image/jpeg,image/png"
                   onChange={handleImageChange}
+                  disabled={isSubmitting}
                   className="hidden"
                 />
               </label>
@@ -111,6 +144,7 @@ const EditProfileModal = ({ onClose }: EditProfileModalProps) => {
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={50}
+              disabled={isSubmitting}
               className={`w-full px-3 py-2 rounded-lg ${
                 theme === 'dark'
                   ? 'bg-slate-700 text-white border-slate-600'
@@ -128,6 +162,7 @@ const EditProfileModal = ({ onClose }: EditProfileModalProps) => {
               onChange={(e) => setBio(e.target.value)}
               maxLength={500}
               rows={4}
+              disabled={isSubmitting}
               className={`w-full px-3 py-2 rounded-lg ${
                 theme === 'dark'
                   ? 'bg-slate-700 text-white border-slate-600'
@@ -144,11 +179,12 @@ const EditProfileModal = ({ onClose }: EditProfileModalProps) => {
           <div className="mb-6">
             <label className="block text-sm font-medium mb-2">Skills</label>
             <div className="flex flex-wrap gap-2">
-              {['English', 'Maths', 'Science'].map(skill => (
+              {availableSkills.map(skill => (
                 <button
                   key={skill}
                   type="button"
                   onClick={() => toggleSkill(skill)}
+                  disabled={isSubmitting}
                   className={`px-3 py-1 rounded-full text-sm transition ${
                     skills.includes(skill)
                       ? 'bg-indigo-600 text-white'
@@ -173,15 +209,20 @@ const EditProfileModal = ({ onClose }: EditProfileModalProps) => {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition"
+              disabled={isSubmitting}
+              className="px-4 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition"
+              disabled={isSubmitting}
+              className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition disabled:opacity-50 flex items-center space-x-2"
             >
-              Save Changes
+              {isSubmitting && (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              )}
+              <span>{isSubmitting ? 'Saving...' : 'Save Changes'}</span>
             </button>
           </div>
         </form>

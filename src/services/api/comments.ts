@@ -15,12 +15,12 @@ export type CommentRequest = {
 
 const commentsApi = {
   createComment: async (postId: string, commentData: CommentRequest): Promise<Comment> => {
-    const response = await axios.post(`/api/comments/${postId}`, commentData);
+    const response = await axios.post<Comment>(`/api/comments/${postId}`, commentData);
     return response.data;
   },
 
   getCommentsByPostId: async (postId: string): Promise<Comment[]> => {
-    const response = await axios.get(`/api/comments/${postId}`);
+    const response = await axios.get<Comment[]>(`/api/comments/${postId}`);
     return response.data;
   },
 

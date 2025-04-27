@@ -1,28 +1,49 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import UserProfile from '../components/user/UserProfile';
-import { Post } from '../components/posts/SkillPostCard';
+import SkillPostCard from '../components/posts/SkillPostCard';
 import { LearningPlan } from '../components/learning/LearningPlanCard';
 import { ProgressUpdate } from '../components/progress/ProgressUpdateCard';
+import { getUserData } from '../services/api/userService';
 
-// Mock profile data
-const mockUserData = {
-  id: '1',
-  name: 'Alex Johnson',
-  username: 'alexj',
-  profilePicture: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=100',
-  bio: 'Science enthusiast and math teacher passionate about helping others learn!',
-  followers: 128,
-  following: 84,
-  stats: {
-    totalPosts: 42,
-    totalLikes: 387,
-    totalComments: 62
-  },
-  isFollowing: false
+// Define Post type locally
+type User = {
+  id: string;
+  name: string;
+  username: string;
+  profilePicture: string;
 };
 
-// Mock posts
+type Media = {
+  id: string;
+  type: 'image' | 'video';
+  url: string;
+};
+
+type Like = {
+  userId: string;
+};
+
+type Comment = {
+  id: string;
+  text: string;
+  userId: string;
+};
+
+type Post = {
+  id: string;
+  user: User;
+  content: string;
+  media?: Media[];
+  likes: Like[];
+  comments: Comment[];
+  createdAt: string;
+  description: string;
+  userId: string;
+  date: string;
+};
+
+// Mock posts with updated structure to match SkillPostCard expectations
 const mockPosts: Post[] = [
   {
     id: 'post-3',
@@ -33,6 +54,8 @@ const mockPosts: Post[] = [
       profilePicture: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=100'
     },
     content: 'Just created this visualization to help my students understand the concept of fractions better. It\'s amazing how visual representations can make complex math concepts more accessible!',
+    description: 'Just created this visualization to help my students understand the concept of fractions better. It\'s amazing how visual representations can make complex math concepts more accessible!',
+    userId: '1',
     media: [
       {
         id: 'media-4',
@@ -40,9 +63,14 @@ const mockPosts: Post[] = [
         url: 'https://images.pexels.com/photos/4386421/pexels-photo-4386421.jpeg?auto=compress&cs=tinysrgb&w=1280'
       }
     ],
-    likes: 35,
-    comments: 8,
-    createdAt: new Date(Date.now() - 4 * 86400000).toISOString() // 4 days ago
+    likes: [
+      { userId: '2' },
+      { userId: '3' },
+      { userId: '4' }
+    ],
+    comments: [],
+    createdAt: new Date(Date.now() - 4 * 86400000).toISOString(),
+    date: new Date(Date.now() - 4 * 86400000).toISOString(),
   },
   {
     id: 'post-4',
@@ -53,10 +81,16 @@ const mockPosts: Post[] = [
       profilePicture: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=100'
     },
     content: 'Here\'s a mnemonic device I created for remembering the order of operations in mathematics (PEMDAS): "Please Excuse My Dear Aunt Sally" - Parentheses, Exponents, Multiplication/Division, Addition/Subtraction.',
+    description: 'Here\'s a mnemonic device I created for remembering the order of operations in mathematics (PEMDAS): "Please Excuse My Dear Aunt Sally" - Parentheses, Exponents, Multiplication/Division, Addition/Subtraction.',
+    userId: '1',
     media: [],
-    likes: 29,
-    comments: 6,
-    createdAt: new Date(Date.now() - 8 * 86400000).toISOString() // 8 days ago
+    likes: [
+      { userId: '5' },
+      { userId: '6' }
+    ],
+    comments: [],
+    createdAt: new Date(Date.now() - 8 * 86400000).toISOString(),
+    date: new Date(Date.now() - 8 * 86400000).toISOString(),
   }
 ];
 
@@ -106,7 +140,7 @@ const mockPlans: LearningPlan[] = [
     completionPercentage: 50,
     estimatedDays: 14,
     followers: 32,
-    createdAt: new Date(Date.now() - 12 * 86400000).toISOString(), // 12 days ago
+    createdAt: new Date(Date.now() - 12 * 86400000).toISOString(),
     user: {
       id: '1',
       name: 'Alex Johnson',
@@ -122,7 +156,7 @@ const mockUpdates: ProgressUpdate[] = [
     id: 'update-2',
     template: 'learned_concept',
     description: 'Just mastered the concept of linear transformations in vector spaces! The key insight was visualizing how matrices transform the basis vectors.',
-    createdAt: new Date(Date.now() - 2 * 86400000).toISOString(), // 2 days ago
+    createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
     subject: 'Maths',
     user: {
       id: '1',
@@ -135,7 +169,7 @@ const mockUpdates: ProgressUpdate[] = [
     id: 'update-3',
     template: 'took_quiz',
     description: 'Scored 95% on the Advanced Grammar Quiz! Still need to work on my understanding of the subjunctive mood in English.',
-    createdAt: new Date(Date.now() - 6 * 86400000).toISOString(), // 6 days ago
+    createdAt: new Date(Date.now() - 6 * 86400000).toISOString(),
     subject: 'English',
     user: {
       id: '1',
@@ -149,32 +183,83 @@ const mockUpdates: ProgressUpdate[] = [
 const ProfilePage = () => {
   const { username } = useParams<{ username: string }>();
   const [loading, setLoading] = useState(true);
-  const [userData, setUserData] = useState(mockUserData);
+  const [userData, setUserData] = useState<any>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [plans, setPlans] = useState<LearningPlan[]>([]);
   const [progressUpdates, setProgressUpdates] = useState<ProgressUpdate[]>([]);
   
   useEffect(() => {
-    // Simulate API call to fetch user data
-    setLoading(true);
+    const fetchUserData = async () => {
+      setLoading(true);
+      try {
+        // For now, we're using a hardcoded userId
+        // In a real app, you would have a way to map from username to userId
+        const userId = '9396b756-d8ac-4883-9266-3a51c1054b3e';
+        
+        // Fetch user data from the API
+        const user = await getUserData(userId);
+        
+        // Set the fetched user data
+        setUserData(user);
+        
+        // For now, use mock data for posts, plans, and updates
+        // In a real app, you would fetch these from your API as well
+        setPosts(mockPosts.map(post => ({
+          ...post,
+          user: {
+            ...post.user,
+            id: userId,
+            name: user.name,
+            username: user.username,
+            profilePicture: user.profilePicture
+          }
+        })));
+        
+        setPlans(mockPlans.map(plan => ({
+          ...plan,
+          user: {
+            ...plan.user,
+            id: userId,
+            name: user.name,
+            username: user.username,
+            profilePicture: user.profilePicture
+          }
+        })));
+        
+        setProgressUpdates(mockUpdates.map(update => ({
+          ...update,
+          user: {
+            ...update.user,
+            id: userId,
+            name: user.name,
+            username: user.username,
+            profilePicture: user.profilePicture
+          }
+        })));
+        
+      } catch (error) {
+        console.error('Error fetching profile data:', error);
+        // Handle error - maybe set some error state
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    // For demo purposes, we're using the same mock data regardless of username
-    setTimeout(() => {
-      setUserData({
-        ...mockUserData,
-        username: username || mockUserData.username
-      });
-      setPosts(mockPosts);
-      setPlans(mockPlans);
-      setProgressUpdates(mockUpdates);
-      setLoading(false);
-    }, 1000);
+    fetchUserData();
   }, [username]);
   
   if (loading) {
     return (
       <div className="flex justify-center py-12">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+  
+  if (!userData) {
+    return (
+      <div className="flex justify-center py-12">
+        <p className="text-red-500">User not found</p>
       </div>
     );
   }

@@ -9,19 +9,18 @@ const axiosInstance = axios.create({
         'Content-Type': 'application/json',
         'Accept': 'application/json',
     },
-    withCredentials: true, // Important for handling cookies/sessions
+    withCredentials: true, 
 });
 
-// Request interceptor
 axiosInstance.interceptors.request.use(
     (config) => {
-        // Get token from localStorage or your auth context
         const token = localStorage.getItem('authToken');
+        config.headers = config.headers || {};
+        
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
 
-        // Ensure headers are properly set for the request
         if (config.data instanceof FormData) {
             config.headers['Content-Type'] = 'multipart/form-data';
         } else {
@@ -31,22 +30,27 @@ axiosInstance.interceptors.request.use(
         return config;
     },
     (error) => {
+        console.error('Request error:', error);
         return Promise.reject(error);
     }
 );
 
-// Response interceptor
 axiosInstance.interceptors.response.use(
     (response) => response,
     async (error) => {
         const originalRequest = error.config;
 
-        // If the error is 401 and we haven't retried yet
+        console.error('Response error:', {
+            status: error.response?.status,
+            data: error.response?.data,
+            originalUrl: originalRequest?.url,
+            method: originalRequest?.method
+        });
+
         if (error.response?.status === 401 && !originalRequest._retry) {
             originalRequest._retry = true;
 
             try {
-                // Try to refresh token
                 const refreshToken = localStorage.getItem('refreshToken');
                 if (refreshToken) {
                     const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
@@ -59,28 +63,38 @@ axiosInstance.interceptors.response.use(
                         }
                     });
                     
-                    const { token } = response.data;
+                    const responseData = response.data as { token: string };
+                    const { token } = responseData;
                     localStorage.setItem('authToken', token);
                     
-                    // Retry the original request
+                    originalRequest.headers = originalRequest.headers || {};
                     originalRequest.headers.Authorization = `Bearer ${token}`;
                     return axiosInstance(originalRequest);
                 }
             } catch (refreshError) {
-                // If refresh token fails, redirect to login
-                localStorage.removeItem('authToken');
-                localStorage.removeItem('refreshToken');
-                window.location.href = '/login';
+                console.error('Token refresh error:', refreshError);
+               
+                if (!originalRequest.url?.includes('/public/')) {
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('refreshToken');
+                    window.location.href = '/login';
+                }
                 return Promise.reject(refreshError);
             }
         }
 
-        // Handle specific error cases
+        if (error.response?.status === 302) {
+            console.log('Received a redirect response:', error.response.headers?.location);
+            if (error.response.headers?.location?.includes('accounts.google.com')) {
+                return Promise.reject(new Error('Authentication required. Please login.'));
+            }
+        }
+
         if (error.response?.status === 403) {
-            // Redirect to login if forbidden
-            window.location.href = '/login';
+            if (!originalRequest.url?.includes('/public/')) {
+                window.location.href = '/login';
+            }
         } else if (error.code === 'ERR_NETWORK') {
-            // Handle network errors (like CORS issues)
             console.error('Network Error - Please check if the backend server is running and accessible');
             return Promise.reject(new Error('Network Error - Unable to connect to the server'));
         }

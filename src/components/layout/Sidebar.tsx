@@ -43,7 +43,6 @@ const Sidebar = () => {
         </button>
       </nav>
       
-      {/* User Info */}
       <div className={`mt-auto pt-4 border-t ${theme === 'dark' ? 'border-slate-700' : 'border-gray-200'} mt-8`}>
         <div className="flex items-center space-x-3 px-4 py-2">
           {user?.profilePicture ? (

@@ -8,7 +8,6 @@ const NotificationDropdown = () => {
   const { notifications, markAsRead, markAllAsRead } = useNotification();
   const { theme } = useTheme();
   
-  // Get notification icon and text based on type
   const getNotificationDetails = (notification: typeof notifications[0]) => {
     switch (notification.type) {
       case 'like':
@@ -96,7 +95,6 @@ const NotificationDropdown = () => {
                       )}
                     </Link>
                     
-                    {/* Notification Content */}
                     <div className="flex-1">
                       <div className="flex items-start justify-between">
                         <div>
@@ -124,7 +122,6 @@ const NotificationDropdown = () => {
                           </span>
                         </div>
                         
-                        {/* Mark as read button (only for unread) */}
                         {!notification.read && (
                           <button 
                             onClick={() => markAsRead(notification.id)}

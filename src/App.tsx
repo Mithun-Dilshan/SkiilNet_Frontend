@@ -13,6 +13,7 @@ import LearningPlanListPage from './pages/LearningPlanListPage';
 import TestLearningPlanPage from './pages/TestLearningPlanPage';
 import CreateLearningPlanPage from './pages/CreateLearningPlanPage';
 import EditLearningPlanPage from './pages/EditLearningPlanPage';
+import OAuthCallbackPage from './pages/OAuthCallbackPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 function App() {
@@ -23,6 +24,7 @@ function App() {
           <NotificationProvider>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/oauth2/redirect" element={<OAuthCallbackPage />} />
               <Route element={<Layout />}>
                 <Route element={<ProtectedRoute />}>
                   <Route path="/" element={<HomePage />} />

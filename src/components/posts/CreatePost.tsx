@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Image as ImageIcon, Video, X } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
 import postsApi from '../../services/api/posts';
 
 interface CreatePostProps {
@@ -9,12 +10,20 @@ interface CreatePostProps {
 
 const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
   const { theme } = useTheme();
+  const { user } = useAuth();
+  const [userId, setUserId] = useState<string>('');
   const [description, setDescription] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [isVideo, setIsVideo] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Initialize userId from auth context or localStorage
+  useEffect(() => {
+    const storedUserId = localStorage.getItem('userId') || '';
+    setUserId(user?.id || storedUserId);
+  }, [user]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -54,14 +63,23 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
       return;
     }
 
+    if (!userId) {
+      // Try to get from localStorage one more time in case it was set after component mounted
+      const storedUserId = localStorage.getItem('userId');
+      if (!storedUserId) {
+        setError('You must be logged in to create a post');
+        return;
+      }
+      setUserId(storedUserId);
+    }
+
     try {
       setIsLoading(true);
       setError(null);
       await postsApi.createPost({
         description: description.trim(),
         file: selectedFile || undefined,
-       
-        userId: "temp-user-id"
+        userId: userId
       });
       
      

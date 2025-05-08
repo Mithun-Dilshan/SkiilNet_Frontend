@@ -10,7 +10,7 @@ import {
   Topic 
 } from '../services/api/learningPlans';
 
-// Subject options
+// Subject options 
 const SUBJECTS = ['Maths', 'Science', 'English', 'History', 'Technology', 'Arts', 'Other'];
 const RESOURCE_TYPES = ['link', 'document', 'video'];
 

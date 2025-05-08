@@ -143,7 +143,20 @@ const postsApi = {
     // Update a post
     updatePost: async (postId: string, postData: PostRequest): Promise<Post> => {
         try {
-            const response = await axiosInstance.put(`/posts/${postId}`, postData);
+            const formData = new FormData();
+            formData.append('description', postData.description);
+            if (postData.file) {
+                formData.append('file', postData.file);
+            }
+            if (postData.userId) {
+                formData.append('userId', postData.userId);
+            }
+
+            const response = await axiosInstance.put(`/posts/${postId}`, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
             return response.data as Post;
         } catch (error) {
             handleError(error, 'Error updating post');

@@ -28,9 +28,10 @@ type UserProfileProps = {
   posts: Post[];
   plans: LearningPlan[];
   progressUpdates: ProgressUpdate[];
+  onEditProfile: () => void;
 };
 
-const UserProfile = ({ userProfile, posts, plans, progressUpdates }: UserProfileProps) => {
+const UserProfile = ({ userProfile, posts, plans, progressUpdates, onEditProfile }: UserProfileProps) => {
   const { theme } = useTheme();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'posts' | 'plans' | 'progress' | 'stats'>('posts');
@@ -56,82 +57,53 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates }: UserProfile
         <div className="h-40 bg-gradient-to-r from-indigo-500 to-purple-600"></div>
         
         {/* Profile Info */}
-        <div className="p-6 relative">
-          {/* Profile Picture */}
-          <div className="absolute -top-12 left-6">
-            {userProfile.profilePicture ? (
-              <img 
-                src={userProfile.profilePicture} 
+        <div className="px-6 py-4">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center space-x-4">
+              <img
+                src={userProfile.profilePicture || 'https://via.placeholder.com/100'}
                 alt={userProfile.name}
-                className="h-24 w-24 rounded-full border-4 border-white dark:border-slate-800 object-cover"
+                className="w-24 h-24 rounded-full border-4 border-white dark:border-slate-800 -mt-12"
               />
-            ) : (
-              <div className="h-24 w-24 rounded-full border-4 border-white dark:border-slate-800 bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
-                <span className="text-indigo-600 dark:text-indigo-300 text-2xl font-bold">
-                  {userProfile.name.charAt(0)}
-                </span>
+              <div>
+                <h1 className="text-2xl font-bold">{userProfile.name}</h1>
+                <p className="text-gray-500 dark:text-gray-400">@{userProfile.username}</p>
               </div>
-            )}
+            </div>
+            
+            <div className="flex space-x-2">
+              {isCurrentUser ? (
+                <button
+                  onClick={onEditProfile}
+                  className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                >
+                  Edit Profile
+                </button>
+              ) : (
+                <button
+                  onClick={handleFollow}
+                  className={`px-4 py-2 rounded-lg ${
+                    isFollowing
+                      ? 'bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600'
+                      : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  }`}
+                >
+                  {isFollowing ? 'Following' : 'Follow'}
+                </button>
+              )}
+            </div>
           </div>
           
-          {/* Action Buttons */}
-          <div className="flex justify-end mb-10 md:mb-0">
-            {isCurrentUser ? (
-              <div className="flex space-x-3">
-                <button className="px-4 py-2 rounded-full border border-gray-300 dark:border-slate-600 text-sm font-medium flex items-center space-x-1 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                  <Edit className="h-4 w-4" />
-                  <span>Edit Profile</span>
-                </button>
-                <button className="p-2 rounded-full border border-gray-300 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                  <Settings className="h-5 w-5" />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={handleFollow}
-                className={`px-6 py-2 rounded-full text-sm font-medium transition ${
-                  isFollowing
-                    ? 'bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
-                    : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                }`}
-              >
-                {isFollowing ? 'Following' : 'Follow'}
-              </button>
-            )}
-          </div>
+          <p className="mt-4 text-gray-600 dark:text-gray-300">{userProfile.bio}</p>
           
-          {/* User Info */}
-          <div className="mt-8">
-            <h1 className="text-2xl font-bold">{userProfile.name}</h1>
-            <p className="text-gray-500 dark:text-gray-400">@{userProfile.username}</p>
-            
-            {userProfile.bio && (
-              <p className="mt-2 text-gray-700 dark:text-gray-300">{userProfile.bio}</p>
-            )}
-            
-            {/* Stats */}
-            <div className="flex flex-wrap items-center space-x-6 mt-4">
-              <div className="flex items-center space-x-1">
-                <Users className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                <span className="text-sm">
-                  <span className="font-bold">{followersCount}</span> 
-                  <span className="text-gray-500 dark:text-gray-400"> followers</span>
-                </span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <Users className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                <span className="text-sm">
-                  <span className="font-bold">{userProfile.following}</span> 
-                  <span className="text-gray-500 dark:text-gray-400"> following</span>
-                </span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <BookOpen className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                <span className="text-sm">
-                  <span className="font-bold">{userProfile.stats.totalPosts}</span> 
-                  <span className="text-gray-500 dark:text-gray-400"> posts</span>
-                </span>
-              </div>
+          <div className="mt-4 flex space-x-6">
+            <div>
+              <span className="font-semibold">{followersCount}</span>
+              <span className="text-gray-500 dark:text-gray-400 ml-1">Followers</span>
+            </div>
+            <div>
+              <span className="font-semibold">{userProfile.following}</span>
+              <span className="text-gray-500 dark:text-gray-400 ml-1">Following</span>
             </div>
           </div>
         </div>

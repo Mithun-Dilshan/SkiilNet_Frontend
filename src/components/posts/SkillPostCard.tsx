@@ -39,12 +39,12 @@ const SkillPostCard = ({ post, onPostDeleted, onPostUpdated }: SkillPostCardProp
   const [editDescription, setEditDescription] = useState(post.description);
   const [editFile, setEditFile] = useState<File | null>(null);
   const [editPreview, setEditPreview] = useState<string | null>(null);
-  const [liked, setLiked] = useState(post.likes?.some(like => like.userId === user?.id) || false);
-  const [likesCount, setLikesCount] = useState(post.likes?.length || 0);
+  const [liked, setLiked] = useState(Array.isArray(post.likes) ? post.likes.some(like => like.userId === user?.id) : false);
+  const [likesCount, setLikesCount] = useState(Array.isArray(post.likes) ? post.likes.length : 0);
   const [saved, setSaved] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [commentCount, setCommentCount] = useState(post.comments?.length || 0);
+  const [commentCount, setCommentCount] = useState(Array.isArray(post.comments) ? post.comments.length : 0);
   
   // Initialize userId from auth context or localStorage
   useEffect(() => {
@@ -52,7 +52,7 @@ const SkillPostCard = ({ post, onPostDeleted, onPostUpdated }: SkillPostCardProp
     setUserId(user?.id || storedUserId);
     
     // Update liked state based on the retrieved userId
-    setLiked(post.likes?.some(like => like.userId === (user?.id || storedUserId)) || false);
+    setLiked(Array.isArray(post.likes) ? post.likes.some(like => like.userId === (user?.id || storedUserId)) : false);
   }, [user, post.likes]);
   
   const handleDelete = async () => {
@@ -234,7 +234,7 @@ const SkillPostCard = ({ post, onPostDeleted, onPostUpdated }: SkillPostCardProp
         
         <div className="flex items-center space-x-2 relative">
           <span className="text-xs text-gray-500 dark:text-gray-400">
-            {formatDistanceToNow(new Date(post.date), { addSuffix: true })}
+            {post.date ? formatDistanceToNow(new Date(post.date), { addSuffix: true }) : 'Just now'}
           </span>
           <button 
             onClick={() => setShowDropdown(!showDropdown)}

@@ -2,7 +2,7 @@ import axios from './axios';
 import * as mockData from './mockData';
 
 // Set this to false to force use of the real backend API
-const USE_MOCK_DATA_ON_ERROR = true;
+const USE_MOCK_DATA_ON_ERROR = false;
 
 /**
  * These endpoints now use:
@@ -56,17 +56,16 @@ export interface CreateLearningPlanRequest {
 }
 
 // Helper to get the current user's ID
-const getCurrentUserId = (): string => {
+const getCurrentUserId = (): string | null => {
   try {
-    const user = localStorage.getItem('user');
-    if (user) {
-      const parsedUser = JSON.parse(user);
-      return parsedUser.id;
+    const userId = localStorage.getItem('userId');
+    if (userId) {
+      return userId;
     }
   } catch (error) {
-    console.error('Error parsing user from localStorage', error);
+    console.error('Error getting user ID from localStorage', error);
   }
-  return '1'; // Default user ID if none found
+  return null; // Return null if no user ID found
 };
 
 /**

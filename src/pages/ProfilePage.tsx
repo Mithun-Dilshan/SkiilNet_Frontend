@@ -4,59 +4,52 @@ import UserProfile from '../components/user/UserProfile';
 import { Post } from '../components/posts/SkillPostCard';
 import { LearningPlan } from '../components/learning/LearningPlanCard';
 import { ProgressUpdate } from '../components/progress/ProgressUpdateCard';
+import { getUserById } from '../services/api/auth'; // Import the new function
 
-// Mock profile data
-const mockUserData = {
-  id: '1',
-  name: 'Alex Johnson',
-  username: 'alexj',
-  profilePicture: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=100',
-  bio: 'Science enthusiast and math teacher passionate about helping others learn!',
-  followers: 128,
-  following: 84,
+// Define a more complete user profile interface
+interface UserProfileData {
+  id: string;
+  name: string;
+  username: string;
+  profilePicture: string;
+  bio: string;
+  followers: number;
+  following: number;
   stats: {
-    totalPosts: 42,
-    totalLikes: 387,
-    totalComments: 62
-  },
-  isFollowing: false
-};
+    totalPosts: number;
+    totalLikes: number;
+    totalComments: number;
+  };
+  isFollowing: boolean;
+}
 
 // Mock posts
 const mockPosts: Post[] = [
   {
     id: 'post-3',
-    user: {
-      id: '1',
-      name: 'Alex Johnson',
-      username: 'alexj',
-      profilePicture: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=100'
-    },
-    content: 'Just created this visualization to help my students understand the concept of fractions better. It\'s amazing how visual representations can make complex math concepts more accessible!',
+    description: 'Just created this visualization to help my students understand the concept of fractions better. It\'s amazing how visual representations can make complex math concepts more accessible!',
+    url: 'https://images.pexels.com/photos/4386421/pexels-photo-4386421.jpeg?auto=compress&cs=tinysrgb&w=1280',
+    userId: '1',
+    date: new Date().toISOString(),
+    comments: [],
+    likes: [],
     media: [
       {
         id: 'media-4',
         type: 'image',
         url: 'https://images.pexels.com/photos/4386421/pexels-photo-4386421.jpeg?auto=compress&cs=tinysrgb&w=1280'
       }
-    ],
-    likes: 35,
-    comments: 8,
-    createdAt: new Date(Date.now() - 4 * 86400000).toISOString() // 4 days ago
+    ]
   },
   {
     id: 'post-4',
-    user: {
-      id: '1',
-      name: 'Alex Johnson',
-      username: 'alexj',
-      profilePicture: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=100'
-    },
-    content: 'Here\'s a mnemonic device I created for remembering the order of operations in mathematics (PEMDAS): "Please Excuse My Dear Aunt Sally" - Parentheses, Exponents, Multiplication/Division, Addition/Subtraction.',
-    media: [],
-    likes: 29,
-    comments: 6,
-    createdAt: new Date(Date.now() - 8 * 86400000).toISOString() // 8 days ago
+    description: 'Here\'s a mnemonic device I created for remembering the order of operations in mathematics (PEMDAS): "Please Excuse My Dear Aunt Sally" - Parentheses, Exponents, Multiplication/Division, Addition/Subtraction.',
+    url: '',
+    userId: '1',
+    date: new Date(Date.now() - 8 * 86400000).toISOString(), // 8 days ago
+    comments: [],
+    likes: [],
+    media: []
   }
 ];
 
@@ -149,32 +142,134 @@ const mockUpdates: ProgressUpdate[] = [
 const ProfilePage = () => {
   const { username } = useParams<{ username: string }>();
   const [loading, setLoading] = useState(true);
-  const [userData, setUserData] = useState(mockUserData);
+  const [userData, setUserData] = useState<UserProfileData | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [plans, setPlans] = useState<LearningPlan[]>([]);
   const [progressUpdates, setProgressUpdates] = useState<ProgressUpdate[]>([]);
   
   useEffect(() => {
-    // Simulate API call to fetch user data
-    setLoading(true);
+    const fetchUserData = async () => {
+      setLoading(true);
+      
+      try {
+        // Get userId from localStorage if viewing own profile
+        const storedUserId = localStorage.getItem('userId');
+        
+        // If we have a userId in localStorage, use it to fetch user data
+        if (storedUserId) {
+          const user = await getUserById(storedUserId);
+          
+          if (user) {
+            // Transform API user data to match our UserProfileData interface
+            const transformedUserData: UserProfileData = {
+              id: user.id || user.userId || '',
+              name: user.fullName || user.name || 'User',
+              username: username || 'user',
+              profilePicture: user.profilePictureUrl || 'https://via.placeholder.com/100',
+              bio: user.bio || 'No bio available',
+              followers: 0, // Default values as these aren't in the API response
+              following: 0,
+              stats: {
+                totalPosts: 0,
+                totalLikes: 0,
+                totalComments: 0
+              },
+              isFollowing: false
+            };
+            
+            setUserData(transformedUserData);
+            
+            // For now, use mock data for posts, plans, and updates
+            setPosts(mockPosts);
+            setPlans(mockPlans);
+            setProgressUpdates(mockUpdates);
+          } else {
+            console.error('Failed to fetch user data');
+            // Fall back to mock data if API call fails
+            setUserData({
+              id: '1',
+              name: 'Alex Johnson',
+              username: username || 'alexj',
+              profilePicture: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=100',
+              bio: 'Science enthusiast and math teacher passionate about helping others learn!',
+              followers: 128,
+              following: 84,
+              stats: {
+                totalPosts: 42,
+                totalLikes: 387,
+                totalComments: 62
+              },
+              isFollowing: false
+            });
+            setPosts(mockPosts);
+            setPlans(mockPlans);
+            setProgressUpdates(mockUpdates);
+          }
+        } else {
+          // If no userId in localStorage, use mock data
+          setUserData({
+            id: '1',
+            name: 'Alex Johnson',
+            username: username || 'alexj',
+            profilePicture: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=100',
+            bio: 'Science enthusiast and math teacher passionate about helping others learn!',
+            followers: 128,
+            following: 84,
+            stats: {
+              totalPosts: 42,
+              totalLikes: 387,
+              totalComments: 62
+            },
+            isFollowing: false
+          });
+          setPosts(mockPosts);
+          setPlans(mockPlans);
+          setProgressUpdates(mockUpdates);
+        }
+      } catch (error) {
+        console.error('Error fetching profile data:', error);
+        // Fall back to mock data on error
+        setUserData({
+          id: '1',
+          name: 'Alex Johnson',
+          username: username || 'alexj',
+          profilePicture: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=100',
+          bio: 'Science enthusiast and math teacher passionate about helping others learn!',
+          followers: 128,
+          following: 84,
+          stats: {
+            totalPosts: 42,
+            totalLikes: 387,
+            totalComments: 62
+          },
+          isFollowing: false
+        });
+        setPosts(mockPosts);
+        setPlans(mockPlans);
+        setProgressUpdates(mockUpdates);
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    // For demo purposes, we're using the same mock data regardless of username
-    setTimeout(() => {
-      setUserData({
-        ...mockUserData,
-        username: username || mockUserData.username
-      });
-      setPosts(mockPosts);
-      setPlans(mockPlans);
-      setProgressUpdates(mockUpdates);
-      setLoading(false);
-    }, 1000);
+    fetchUserData();
   }, [username]);
   
   if (loading) {
     return (
       <div className="flex justify-center py-12">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+  
+  if (!userData) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-700">User not found</h2>
+          <p className="text-gray-500">The requested profile could not be loaded.</p>
+        </div>
       </div>
     );
   }

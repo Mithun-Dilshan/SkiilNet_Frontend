@@ -26,7 +26,7 @@ interface LearningPlan extends ContentBase {
   type: 'plan';
   title: string;
   description: string;
-  subject: 'English' | 'Maths' | 'Science';
+  subject: 'Photography' | 'Adventure Sports' | 'Wildlife';
   topics: Array<{
     id: string;
     title: string;
@@ -56,7 +56,7 @@ interface ProgressUpdate extends ContentBase {
   template: 'completed_lesson';
   description: string;
   createdAt: string;
-  subject: 'English' | 'Maths' | 'Science';
+  subject: 'Photography' | 'Adventure Sports' | 'Wildlife';
   user: {
     id: string;
     name: string;
@@ -70,13 +70,13 @@ const mockPlans: LearningPlan[] = [
   {
     id: 'plan-1',
     type: 'plan',
-    title: 'Advanced English Grammar Mastery',
-    description: 'A comprehensive 30-day plan to master advanced English grammar concepts including conditionals, reported speech, and complex tenses.',
-    subject: 'English',
+    title: 'Advanced Photography Techniques',
+    description: 'A comprehensive 30-day plan to master advanced photography concepts including composition, lighting, and post-processing.',
+    subject: 'Photography', 
     topics: [
       {
         id: 'topic-1',
-        title: 'Perfect Tenses & Their Uses',
+        title: 'Advanced Composition Techniques',
         completed: true
       },
       {

@@ -5,7 +5,6 @@ import { getUserProfile, updateUserProfile, UserProfileApiResponse } from '../se
 import { useAuth } from '../contexts/AuthContext';
 import { getStoredUserData, saveUserData } from '../utils/userUtils';
 
-// Default profile structure as fallback
 const defaultUserData = {
   id: '',
   name: '',
@@ -50,7 +49,6 @@ const ProfilePage = () => {
             user.name?.toLowerCase() === currentUsername);
   };
   
-  // Handle profile edit form changes
   const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setEditedProfile(prev => ({
@@ -59,7 +57,6 @@ const ProfilePage = () => {
     }));
   };
   
-  // Submit profile edits
   const handleProfileUpdate = async () => {
     if (!user || !user.id) {
       setUpdateError('You must be logged in to update your profile');
@@ -69,33 +66,26 @@ const ProfilePage = () => {
     try {
       setUpdateError('');
       
-      // Optimistic UI update
       setUserData(prev => ({
         ...prev,
         name: editedProfile.fullName || prev.name,
         bio: editedProfile.bio || prev.bio,
         profilePicture: editedProfile.profilePictureUrl || prev.profilePicture
       }));
-      
-      // Try to update profile via API
-      const result = await updateUserProfile(user.id, {
+            const result = await updateUserProfile(user.id, {
         fullName: editedProfile.fullName,
         bio: editedProfile.bio,
         profilePictureUrl: editedProfile.profilePictureUrl
       });
       
       if (result) {
-        // Update successful, show a success message briefly
         setUpdateSuccess(true);
         setTimeout(() => setUpdateSuccess(false), 3000);
         
-        // Close the edit form
         setIsEditing(false);
       } else {
-        // If the API call failed entirely, it might be an auth issue
         setUpdateError('Profile update only saved locally. Changes will be synced when you reconnect.');
         
-        // Still close the form since the local update worked
         setTimeout(() => {
           setIsEditing(false);
           setUpdateError('');
@@ -112,7 +102,6 @@ const ProfilePage = () => {
         setUpdateError('Failed to update profile on server. Changes saved locally only.');
       }
       
-      // Keep the edit form open briefly so user can see the error
       setTimeout(() => {
         setIsEditing(false);
         setUpdateError('');
@@ -121,27 +110,22 @@ const ProfilePage = () => {
   };
   
   useEffect(() => {
-    // Fetch user data - first checking localStorage, then API if possible
     const fetchUserProfile = async () => {
       setLoading(true);
       
       try {
-        // First, try to use localStorage data if available (for quick loading)
         const storedUser = getStoredUserData();
         const token = localStorage.getItem('token');
         
         let userId = '';
         let useStoredDataOnly = false;
         
-        // Figure out which user we're looking for
         if (username) {
-          // If we're looking at the current user's profile
           if (storedUser && 
               (storedUser.username?.toLowerCase() === username.toLowerCase() || 
                storedUser.name?.toLowerCase() === username.toLowerCase())) {
             userId = storedUser.id;
             
-            // Pre-populate with localStorage data for immediate display
             setUserData({
               id: storedUser.id,
               name: storedUser.name || '',
@@ -158,22 +142,18 @@ const ProfilePage = () => {
               isFollowing: false
             });
             
-            // Also pre-populate the edit form
             setEditedProfile({
               fullName: storedUser.name || '',
               bio: storedUser.bio || '',
               profilePictureUrl: storedUser.profilePictureUrl || ''
             });
           } else {
-            // For someone else's profile, use username as userID (backend limitation)
             userId = username;
             
-            // Skip API call if no auth token
             if (!token) {
               useStoredDataOnly = true;
               console.log('No auth token - skipping API call for other user profile');
               
-              // Show a minimal profile with just the username
               setUserData({
                 ...defaultUserData,
                 id: username,
@@ -183,10 +163,8 @@ const ProfilePage = () => {
             }
           }
         } else if (user) {
-          // No username in URL, but we have a logged-in user
           userId = user.id;
           
-          // Pre-populate with user context data
           if (user.name) {
             setUserData({
               id: user.id,
@@ -204,7 +182,6 @@ const ProfilePage = () => {
               isFollowing: false
             });
             
-            // Also pre-populate the edit form
             setEditedProfile({
               fullName: user.name || '',
               bio: user.bio || '',
@@ -212,10 +189,8 @@ const ProfilePage = () => {
             });
           }
         } else if (storedUser) {
-          // Fallback to localStorage if no user in context
           userId = storedUser.id;
           
-          // Pre-populate with localStorage data
           setUserData({
             id: storedUser.id,
             name: storedUser.name || '',
@@ -232,7 +207,6 @@ const ProfilePage = () => {
             isFollowing: false
           });
           
-          // Also pre-populate the edit form
           setEditedProfile({
             fullName: storedUser.name || '',
             bio: storedUser.bio || '',
@@ -242,21 +216,17 @@ const ProfilePage = () => {
           throw new Error('No user information available');
         }
         
-        // Don't attempt any API calls if there's no token
         if (!token) {
           console.log('No auth token available - skipping API calls completely');
           setLoading(false);
           return;
         }
         
-        // If we have a user ID and should try the API
         if (userId && !useStoredDataOnly) {
           try {
-            // Try to fetch from API to get most up-to-date data
             const apiData = await getUserProfile(userId);
             
             if (apiData) {
-              // API call succeeded - update with latest data
               const profileData = {
                 id: apiData.userId,
                 name: apiData.fullName || (storedUser?.name || username || ''),
@@ -274,28 +244,22 @@ const ProfilePage = () => {
               };
               setUserData(profileData);
               
-              // Update edit form with latest data
               setEditedProfile({
                 fullName: apiData.fullName || '',
                 bio: apiData.bio || '',
                 profilePictureUrl: apiData.profilePictureUrl || ''
               });
             }
-            // Note: If API call fails, we'll stick with the pre-populated data
           } catch (apiError: any) {
-            // If this is an auth error, we can just use local data
             if (apiError.isAuthError) {
               console.log('Authentication required for API access - using local data only');
             } else {
-              // For other errors, log but still continue with local data
               console.error('API error fetching profile:', apiError);
             }
-            // We already pre-populated with local data, so no need to do anything else
           }
         }
       } catch (error) {
         console.error('Error in profile page:', error);
-        // We've already pre-populated data, so the error is less critical
       } finally {
         setLoading(false);
       }

@@ -1,19 +1,18 @@
 import axios from 'axios';
 
 const instance = axios.create({
-  baseURL: 'http://localhost:8080/api',  // Updated to include /api prefix to match Spring Boot controller paths
+  baseURL: 'http://localhost:8080/api',  
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true,  // Enable sending cookies in cross-origin requests
-  timeout: 10000,  // Add a default timeout of 10 seconds to prevent hanging
-  validateStatus: (status) => status < 300,  // Only consider 2xx responses as valid, reject redirects
+  withCredentials: true,  
+  timeout: 10000,  
+  validateStatus: (status) => status < 300,  
 });
 
-// Add a request interceptor
+
 instance.interceptors.request.use(
   (config) => {
-    // You can add auth tokens here if needed
     const token = localStorage.getItem('token');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -26,18 +25,14 @@ instance.interceptors.request.use(
   }
 );
 
-// Add a response interceptor
 instance.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Detect redirects and block them early
     const originalRequest = error.config;
     
-    // If there's no response object at all, it's likely a CORS or network error
     if (!error.response) {
       console.error('Network error or CORS issue:', error.message);
       
-      // Detect OAuth redirects that cause CORS errors (check both the error message and the URL if available)
       const isOAuthRedirect = 
         error.message === 'Network Error' || 
         (error.request?.responseURL && 
@@ -50,7 +45,6 @@ instance.interceptors.response.use(
       if (isOAuthRedirect) {
         console.warn('Detected OAuth redirect - user likely needs to log in');
         
-        // Instead of redirecting, just return a specific error that can be handled
         return Promise.reject({
           isAuthError: true,
           message: 'Authentication required. Please log in.',
@@ -58,7 +52,6 @@ instance.interceptors.response.use(
         });
       }
       
-      // For other network errors, return a specific indicator
       return Promise.reject({
         isNetworkError: true,
         message: 'Network error. Please check your connection.',
@@ -66,15 +59,12 @@ instance.interceptors.response.use(
       });
     }
     
-    // Regular error with a response
     console.error('Response error:', error.response?.status, error.message);
     
-    // Check if we're being redirected to OAuth
     if (error.response?.status === 302 || 
         (error.message === 'Network Error' && error.request?.responseURL?.includes('accounts.google.com'))) {
       console.log('Detected redirect to OAuth login');
       
-      // Avoid automatic redirects, let the application code handle this
       return Promise.reject({
         isAuthError: true,
         message: 'Authentication required. Please log in.',
@@ -83,10 +73,8 @@ instance.interceptors.response.use(
     }
     
     if (error.response) {
-      // Handle specific error cases
       switch (error.response.status) {
         case 401:
-          // Handle unauthorized
           console.log('401 Unauthorized - Authentication required');
           return Promise.reject({
             isAuthError: true,
@@ -96,7 +84,6 @@ instance.interceptors.response.use(
           });
           
         case 403:
-          // Handle forbidden
           console.log('403 Forbidden - Access denied');
           return Promise.reject({
             isAuthError: true,
@@ -106,7 +93,6 @@ instance.interceptors.response.use(
           });
           
         case 404:
-          // Handle not found
           console.log('404 Not Found');
           break;
           
@@ -115,7 +101,6 @@ instance.interceptors.response.use(
           break;
           
         default:
-          // Handle other errors
           console.log(`${error.response.status} Error`, error.response.data);
           break;
       }

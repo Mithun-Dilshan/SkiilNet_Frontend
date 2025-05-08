@@ -58,7 +58,7 @@ const LearningPlanPage = () => {
     if (!plan || !id) return;
     
     try {
-      const userId = user?.id || '1'; // Default user ID for testing
+      const userId = user?.id || '1'; 
       
       let updatedPlan;
       if (following) {
@@ -78,7 +78,7 @@ const LearningPlanPage = () => {
     if (!plan || !id) return;
     
     try {
-      const userId = user?.id || '1'; // Default user ID for testing
+      const userId = user?.id || '1'; 
       const updatedPlan = await markTopicAsCompleted(userId, id, topicId, completed);
       setPlan(updatedPlan);
     } catch (err) {
@@ -90,7 +90,7 @@ const LearningPlanPage = () => {
     if (!plan || !id || !window.confirm('Are you sure you want to delete this learning plan?')) return;
     
     try {
-      const userId = user?.id || '1'; // Default user ID for testing
+      const userId = user?.id || '1'; 
       await deleteLearningPlan(userId, id);
       navigate('/my-plans');
     } catch (err) {
@@ -98,7 +98,6 @@ const LearningPlanPage = () => {
     }
   };
   
-  // Get progress color based on completion percentage
   const getProgressColor = () => {
     if (!plan) return 'bg-gray-200';
     if (plan.completionPercentage < 33) return 'bg-red-400';
@@ -146,7 +145,6 @@ const LearningPlanPage = () => {
   
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      {/* Header with back button */}
       <div className="flex items-center mb-6">
         <Link to="/my-plans" className="mr-3 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 transition">
           <ArrowLeft className="h-5 w-5" />
@@ -165,9 +163,7 @@ const LearningPlanPage = () => {
         )}
       </div>
       
-      {/* Plan Header Card */}
       <div className={`rounded-xl overflow-hidden ${theme === 'dark' ? 'bg-slate-800' : 'bg-white'} shadow-md mb-6`}>
-        {/* Subject Badge & Creator Info */}
         <div className="p-6 pb-0">
           <div className="flex justify-between">
             <div className="flex items-center space-x-2">
@@ -204,7 +200,6 @@ const LearningPlanPage = () => {
           </div>
         </div>
         
-        {/* Title and Description */}
         <div className="p-6">
           <h2 className="text-2xl font-bold mb-3">{plan.title}</h2>
           <p className="text-gray-700 dark:text-gray-300 mb-6">{plan.description}</p>
@@ -250,7 +245,6 @@ const LearningPlanPage = () => {
             )}
           </div>
           
-          {/* Progress Bar */}
           <div className="mb-2">
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm font-medium">Progress</span>
@@ -427,10 +421,8 @@ const LearningPlanPage = () => {
             </div>
             
             <div className="relative pl-8">
-              {/* Timeline line */}
               <div className="absolute left-3 top-2 bottom-0 w-0.5 bg-gray-300 dark:bg-gray-700"></div>
               
-              {/* Completed topics */}
               {plan.topics.filter(t => t.completed).map((topic, index) => (
                 <div key={topic.id} className="relative mb-6">
                   {/* Timeline dot */}
@@ -455,10 +447,8 @@ const LearningPlanPage = () => {
                 </div>
               ))}
               
-              {/* Upcoming topics */}
               {plan.topics.filter(t => !t.completed).map((topic, index) => (
                 <div key={topic.id} className="relative mb-6">
-                  {/* Timeline dot */}
                   <div className="absolute -left-5 h-6 w-6 rounded-full bg-gray-400 dark:bg-gray-600 flex items-center justify-center">
                     <span className="text-white text-xs font-bold">{index + 1}</span>
                   </div>

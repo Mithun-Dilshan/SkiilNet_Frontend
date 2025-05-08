@@ -9,6 +9,11 @@ import LoginPage from './pages/LoginPage';
 import SearchPage from './pages/SearchPage';
 import NotificationsPage from './pages/NotificationsPage';
 import LearningPlanPage from './pages/LearningPlanPage';
+import LearningPlanListPage from './pages/LearningPlanListPage';
+import TestLearningPlanPage from './pages/TestLearningPlanPage';
+import CreateLearningPlanPage from './pages/CreateLearningPlanPage';
+import EditLearningPlanPage from './pages/EditLearningPlanPage';
+import OAuthCallbackPage from './pages/OAuthCallbackPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 function App() {
@@ -19,6 +24,7 @@ function App() {
           <NotificationProvider>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/oauth2/redirect" element={<OAuthCallbackPage />} />
               <Route element={<Layout />}>
                 <Route element={<ProtectedRoute />}>
                   <Route path="/" element={<HomePage />} />
@@ -26,7 +32,10 @@ function App() {
                   <Route path="/search" element={<SearchPage />} />
                   <Route path="/notifications" element={<NotificationsPage />} />
                   <Route path="/learning-plan/:id" element={<LearningPlanPage />} />
-                  <Route path="/my-plans" element={<LearningPlanPage />} />
+                  <Route path="/my-plans" element={<LearningPlanListPage />} />
+                  <Route path="/test-learning-plans" element={<TestLearningPlanPage />} />
+                  <Route path="/create-learning-plan" element={<CreateLearningPlanPage />} />
+                  <Route path="/edit-learning-plan/:id" element={<EditLearningPlanPage />} />
                 </Route>
               </Route>
             </Routes>

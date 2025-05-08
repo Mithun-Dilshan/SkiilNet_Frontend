@@ -47,7 +47,6 @@ const LearningPlanCard = ({ plan }: LearningPlanCardProps) => {
   const [followersCount, setFollowersCount] = useState(plan.followers);
   const [expanded, setExpanded] = useState(false);
   
-  // Get progress color based on completion percentage
   const getProgressColor = () => {
     if (plan.completionPercentage < 33) return 'bg-red-400';
     if (plan.completionPercentage < 67) return 'bg-yellow-400';
@@ -67,7 +66,6 @@ const LearningPlanCard = ({ plan }: LearningPlanCardProps) => {
     setExpanded(!expanded);
   };
   
-  // Get subject badge color
   const getSubjectColor = () => {
     switch (plan.subject) {
       case 'English':
@@ -83,7 +81,6 @@ const LearningPlanCard = ({ plan }: LearningPlanCardProps) => {
   
   return (
     <div className={`rounded-xl overflow-hidden ${theme === 'dark' ? 'bg-slate-800' : 'bg-white'} shadow-md transition-all duration-200 hover:shadow-lg mb-6`}>
-      {/* Plan Header */}
       <div className="p-4 border-b border-gray-100 dark:border-slate-700">
         <div className="flex items-center justify-between mb-2">
           <Link to={`/profile/${plan.user.username}`} className="flex items-center space-x-3">
@@ -122,7 +119,6 @@ const LearningPlanCard = ({ plan }: LearningPlanCardProps) => {
           </p>
         </Link>
         
-        {/* Stats Row */}
         <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-1">
@@ -139,7 +135,6 @@ const LearningPlanCard = ({ plan }: LearningPlanCardProps) => {
             </div>
           </div>
           
-          {/* Follow Button */}
           <button
             onClick={handleFollow}
             className={`px-4 py-1 rounded-full text-sm transition-colors ${
@@ -153,7 +148,6 @@ const LearningPlanCard = ({ plan }: LearningPlanCardProps) => {
         </div>
       </div>
       
-      {/* Progress Bar */}
       <div className="w-full h-2 bg-gray-200 dark:bg-slate-700">
         <div 
           className={`h-full rounded-r-full ${getProgressColor()}`}
@@ -161,7 +155,6 @@ const LearningPlanCard = ({ plan }: LearningPlanCardProps) => {
         />
       </div>
       
-      {/* Expandable Content */}
       <div className="p-4">
         <button
           onClick={toggleExpand}
@@ -180,7 +173,6 @@ const LearningPlanCard = ({ plan }: LearningPlanCardProps) => {
         
         {expanded && (
           <div className="space-y-4">
-            {/* Topics List */}
             {plan.topics.length > 0 && (
               <div>
                 <h4 className="font-medium mb-2">Topics</h4>
@@ -203,7 +195,6 @@ const LearningPlanCard = ({ plan }: LearningPlanCardProps) => {
               </div>
             )}
             
-            {/* Resources */}
             {plan.resources.length > 0 && (
               <div>
                 <h4 className="font-medium mb-2">Resources</h4>

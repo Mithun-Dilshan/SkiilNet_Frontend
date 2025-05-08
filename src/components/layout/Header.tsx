@@ -34,7 +34,6 @@ const Header = () => {
           <span className="text-2xl font-bold text-indigo-600">SkillNet</span>
         </Link>
         
-        {/* Search Bar - Hide on smaller screens */}
         <div className="hidden md:block flex-1 max-w-md mx-4">
           <form onSubmit={handleSearch} className="relative">
             <input
@@ -50,9 +49,7 @@ const Header = () => {
           </form>
         </div>
         
-        {/* Actions */}
         <div className="flex items-center space-x-4">
-          {/* Theme Toggle */}
           <button 
             onClick={toggleTheme} 
             className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 transition"
@@ -61,7 +58,6 @@ const Header = () => {
             {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </button>
           
-          {/* Notifications */}
           <div className="relative">
             <button 
               onClick={toggleNotifications} 
@@ -76,7 +72,6 @@ const Header = () => {
               )}
             </button>
             
-            {/* Notification Dropdown */}
             {showNotifications && <NotificationDropdown />}
           </div>
           
@@ -93,7 +88,6 @@ const Header = () => {
             )}
           </Link>
           
-          {/* Mobile Menu Button */}
           <button 
             className="md:hidden p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700"
             onClick={() => setShowMobileMenu(!showMobileMenu)}
@@ -104,7 +98,6 @@ const Header = () => {
         </div>
       </div>
       
-      {/* Mobile Search Bar */}
       <div className="md:hidden px-4 pb-3">
         <form onSubmit={handleSearch} className="relative">
           <input

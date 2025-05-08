@@ -30,6 +30,7 @@ type SkillPostCardProps = {
 const SkillPostCard = ({ post, onPostDeleted, onPostUpdated }: SkillPostCardProps) => {
   const { theme } = useTheme();
   const { user } = useAuth();
+  const [userId, setUserId] = useState<string>('');
   const [currentSlide, setCurrentSlide] = useState(0);
   const [showComments, setShowComments] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -38,17 +39,28 @@ const SkillPostCard = ({ post, onPostDeleted, onPostUpdated }: SkillPostCardProp
   const [editDescription, setEditDescription] = useState(post.description);
   const [editFile, setEditFile] = useState<File | null>(null);
   const [editPreview, setEditPreview] = useState<string | null>(null);
-  const [liked, setLiked] = useState(post.likes?.some(like => like.userId === user?.id) || false);
-  const [likesCount, setLikesCount] = useState(post.likes?.length || 0);
+  const [liked, setLiked] = useState(Array.isArray(post.likes) && post.likes.some(like => like.userId === user?.id) || false);
+  const [likesCount, setLikesCount] = useState(Array.isArray(post.likes) ? post.likes.length : 0);
   const [saved, setSaved] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [commentCount, setCommentCount] = useState(post.comments?.length || 0);
+  const [commentCount, setCommentCount] = useState(Array.isArray(post.comments) ? post.comments.length : 0);
   
+  // Initialize userId from auth context or localStorage
   useEffect(() => {
-    setLiked(post.likes?.some(like => like.userId === user?.id) || false);
-    setLikesCount(post.likes?.length || 0);
-  }, [post, user]);
+    const storedUserId = localStorage.getItem('userId') || '';
+    setUserId(user?.id || storedUserId);
+    
+    // Update liked state based on the retrieved userId
+    setLiked(Array.isArray(post.likes) && post.likes.some(like => like.userId === (user?.id || storedUserId)) || false);
+  }, [user, post.likes]);
+  
+  // Initialize saved state from post data
+  useEffect(() => {
+    if (post.savedByUsers && userId) {
+      setSaved(post.savedByUsers.includes(userId));
+    }
+  }, [post.savedByUsers, userId]);
   
   const handleDelete = async () => {
     try {
@@ -69,16 +81,35 @@ const SkillPostCard = ({ post, onPostDeleted, onPostUpdated }: SkillPostCardProp
       return;
     }
 
+    if (!userId) {
+      // Try to get from localStorage one more time in case it was set after component mounted
+      const storedUserId = localStorage.getItem('userId');
+      if (!storedUserId) {
+        setError('You must be logged in to update a post');
+        return;
+      }
+      setUserId(storedUserId);
+    }
+
     try {
       setIsLoading(true);
       setError(null);
-      const updatedPost = await postsApi.updatePost(post.id, {
+      
+      // Update the post first
+      await postsApi.updatePost(post.id, {
         description: editDescription.trim(),
         file: editFile || undefined,
-        userId: post.userId
+        userId: userId
       });
-      onPostUpdated?.(updatedPost);
+      
+      // Then fetch the updated post to get the latest data
+      const updatedPost = await postsApi.getPost(post.id);
+      
+      // Close the edit form
       setShowEditForm(false);
+      
+      // Notify parent component with the full updated post
+      onPostUpdated?.(updatedPost);
     } catch (error) {
       console.error('Error updating post:', error);
       setError('Failed to update post. Please try again.');
@@ -110,23 +141,34 @@ const SkillPostCard = ({ post, onPostDeleted, onPostUpdated }: SkillPostCardProp
   };
   
   const handleLike = async () => {
-    if (isLoading || !user) return;
+    if (isLoading) return;
+    
+    if (!userId) {
+      // Try to get from localStorage one more time in case it was set after component mounted
+      const storedUserId = localStorage.getItem('userId');
+      if (!storedUserId) {
+        setError('You must be logged in to like a post');
+        return;
+      }
+      setUserId(storedUserId);
+    }
     
     try {
-      
+      // Optimistic UI update
       setLiked(!liked);
       setLikesCount(prev => liked ? prev - 1 : prev + 1);
       
-     
+      // Call the API with the user's ID
       const updatedPost = liked 
-        ? await postsApi.unlikePost(post.id)
-        : await postsApi.likePost(post.id);
+        ? await postsApi.unlikePost(post.id, userId)
+        : await postsApi.likePost(post.id, userId);
       
-     
+      // Update the parent component if needed
       onPostUpdated?.(updatedPost);
     } catch (error) {
       console.error('Error toggling like:', error);
       
+      // Revert UI on error
       setLiked(liked);
       setLikesCount(liked ? likesCount : likesCount);
       setError('Failed to update like status. Please try again.');
@@ -136,14 +178,26 @@ const SkillPostCard = ({ post, onPostDeleted, onPostUpdated }: SkillPostCardProp
   const handleSave = async () => {
     if (isLoading) return;
     
+    if (!userId) {
+      // Try to get from localStorage one more time in case it was set after component mounted
+      const storedUserId = localStorage.getItem('userId');
+      if (!storedUserId) {
+        setError('You must be logged in to save a post');
+        return;
+      }
+      setUserId(storedUserId);
+    }
+    
     try {
       setIsLoading(true);
-      if (saved) {
-        await postsApi.unsavePost(post.id);
-      } else {
-        await postsApi.savePost(post.id);
-      }
+      // Optimistic UI update
       setSaved(!saved);
+      
+      if (saved) {
+        await postsApi.unsavePost(post.id, userId);
+      } else {
+        await postsApi.savePost(post.id, userId);
+      }
     } catch (error) {
       console.error('Error toggling save:', error);
       // Revert the optimistic update if the API call fails
@@ -154,11 +208,11 @@ const SkillPostCard = ({ post, onPostDeleted, onPostUpdated }: SkillPostCardProp
   };
   
   const handleNextSlide = () => {
-    setCurrentSlide(prev => (prev + 1) % (post.media?.length || 1));
+    setCurrentSlide(prev => (prev + 1) % (Array.isArray(post.media) && post.media.length > 0 ? post.media.length : 1));
   };
   
   const handlePrevSlide = () => {
-    setCurrentSlide(prev => (prev - 1 + (post.media?.length || 1)) % (post.media?.length || 1));
+    setCurrentSlide(prev => (prev - 1 + (Array.isArray(post.media) && post.media.length > 0 ? post.media.length : 1)) % (Array.isArray(post.media) && post.media.length > 0 ? post.media.length : 1));
   };
   
   const toggleComments = () => {
@@ -187,7 +241,18 @@ const SkillPostCard = ({ post, onPostDeleted, onPostUpdated }: SkillPostCardProp
         
         <div className="flex items-center space-x-2 relative">
           <span className="text-xs text-gray-500 dark:text-gray-400">
-            {formatDistanceToNow(new Date(post.date), { addSuffix: true })}
+            {(() => {
+              try {
+                const date = new Date(post.date);
+                // Check if date is valid
+                return !isNaN(date.getTime()) 
+                  ? formatDistanceToNow(date, { addSuffix: true })
+                  : 'Date unknown';
+              } catch (error) {
+                console.error('Invalid date format:', post.date);
+                return 'Date unknown';
+              }
+            })()}
           </span>
           <button 
             onClick={() => setShowDropdown(!showDropdown)}
@@ -388,20 +453,20 @@ const SkillPostCard = ({ post, onPostDeleted, onPostUpdated }: SkillPostCardProp
       </div>
       
     
-      {post.media && post.media.length > 0 && (
+      {Array.isArray(post.media) && post.media.length > 0 && (
         <div className="relative">
           <div className="aspect-[16/9] overflow-hidden">
-            {post.media[currentSlide].type === 'image' ? (
-              <img 
-                src={post.media[currentSlide].url} 
-                alt="Post media"
-                className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-              />
-            ) : (
-              <video 
-                src={post.media[currentSlide].url} 
-                controls
+            {Array.isArray(post.media) && post.media[currentSlide] && post.media[currentSlide].type === 'image' ? (
+              <img
                 className="w-full h-full object-cover"
+                src={post.media[currentSlide].url}
+                alt={`Post by ${post.userId}`}
+              />
+            ) : Array.isArray(post.media) && post.media[currentSlide] && (
+              <video
+                className="w-full h-full object-cover"
+                src={post.media[currentSlide].url}
+                controls
               />
             )}
           </div>
@@ -413,7 +478,7 @@ const SkillPostCard = ({ post, onPostDeleted, onPostUpdated }: SkillPostCardProp
         <div className="flex items-center space-x-4">
           <button 
             onClick={handleLike}
-            disabled={isLoading || !user}
+            disabled={isLoading || !userId}
             className={`p-2 rounded-full transition-colors duration-200 ${
               liked 
                 ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20' 

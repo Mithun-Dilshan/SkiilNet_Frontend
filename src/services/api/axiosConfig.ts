@@ -1,46 +1,107 @@
 import axios from 'axios';
 
 const instance = axios.create({
-  baseURL: 'http://localhost:8080',  // Your Spring Boot backend URL
+  baseURL: 'http://localhost:8080/api',  
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true  // Enable sending cookies in cross-origin requests
+  withCredentials: true,  
+  timeout: 10000,  
+  validateStatus: (status) => status < 300,  
 });
 
-// Add a request interceptor
+
 instance.interceptors.request.use(
   (config) => {
-    // You can add auth tokens here if needed
     const token = localStorage.getItem('token');
-    if (token) {
+    if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
   (error) => {
+    console.error('Request error:', error);
     return Promise.reject(error);
   }
 );
 
-// Add a response interceptor
 instance.interceptors.response.use(
   (response) => response,
   (error) => {
+    const originalRequest = error.config;
+    
+    if (!error.response) {
+      console.error('Network error or CORS issue:', error.message);
+      
+      const isOAuthRedirect = 
+        error.message === 'Network Error' || 
+        (error.request?.responseURL && 
+         (error.request.responseURL.includes('oauth2') || 
+          error.request.responseURL.includes('accounts.google.com'))) ||
+        (error.request?.responseText && 
+         (error.request.responseText.includes('oauth2') || 
+          error.request.responseText.includes('accounts.google.com')));
+      
+      if (isOAuthRedirect) {
+        console.warn('Detected OAuth redirect - user likely needs to log in');
+        
+        return Promise.reject({
+          isAuthError: true,
+          message: 'Authentication required. Please log in.',
+          originalError: error
+        });
+      }
+      
+      return Promise.reject({
+        isNetworkError: true,
+        message: 'Network error. Please check your connection.',
+        originalError: error
+      });
+    }
+    
+    console.error('Response error:', error.response?.status, error.message);
+    
+    if (error.response?.status === 302 || 
+        (error.message === 'Network Error' && error.request?.responseURL?.includes('accounts.google.com'))) {
+      console.log('Detected redirect to OAuth login');
+      
+      return Promise.reject({
+        isAuthError: true,
+        message: 'Authentication required. Please log in.',
+        originalError: error
+      });
+    }
+    
     if (error.response) {
-      // Handle specific error cases
       switch (error.response.status) {
         case 401:
-          // Handle unauthorized
-          break;
+          console.log('401 Unauthorized - Authentication required');
+          return Promise.reject({
+            isAuthError: true,
+            status: 401,
+            message: 'Authentication required. Please log in.',
+            originalError: error
+          });
+          
         case 403:
-          // Handle forbidden
-          break;
+          console.log('403 Forbidden - Access denied');
+          return Promise.reject({
+            isAuthError: true,
+            status: 403,
+            message: 'Access denied. You do not have permission.',
+            originalError: error
+          });
+          
         case 404:
-          // Handle not found
+          console.log('404 Not Found');
           break;
+          
+        case 500:
+          console.log('500 Server Error:', error.response.data);
+          break;
+          
         default:
-          // Handle other errors
+          console.log(`${error.response.status} Error`, error.response.data);
           break;
       }
     }

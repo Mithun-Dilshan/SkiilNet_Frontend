@@ -26,6 +26,7 @@ export interface Post {
         createdAt: string;
     }>;
     likes: Like[];
+    savedByUsers?: string[];
     media?: Array<{
         id: string;
         type: 'image' | 'video';
@@ -37,14 +38,11 @@ export interface Post {
 const handleError = (error: any, customMessage: string) => {
     console.error(customMessage, error);
     if (error.response) {
-        // The request was made and the server responded with a status code
-        // that falls out of the range of 2xx
+      
         throw new Error(error.response.data.message || customMessage);
     } else if (error.request) {
-        // The request was made but no response was received
         throw new Error('No response received from server. Please try again.');
     } else {
-        // Something happened in setting up the request that triggered an Error
         throw new Error(error.message || customMessage);
     }
 };
@@ -54,15 +52,16 @@ const postsApi = {
     getAllPosts: async (): Promise<Post[]> => {
         try {
             const response = await axiosInstance.get('/posts');
-            if (!response.data || !response.data.posts) {
+            const data = response.data as { posts?: Post[] };
+            if (!data || !data.posts) {
                 return [];
             }
-            return response.data.posts.map((post: any) => ({
+            return data.posts.map((post: any) => ({
                 id: post.id,
                 description: post.description,
                 url: post.url,
                 userId: post.userId,
-                date: new Date(post.date).toISOString(), // Convert to ISO string for consistent formatting
+                date: new Date(post.date).toISOString(), 
                 comments: Array.isArray(post.comments) ? post.comments : [],
                 likes: Array.isArray(post.likes) ? post.likes : [],
                 media: post.url ? [{
@@ -81,7 +80,8 @@ const postsApi = {
     getPost: async (postId: string): Promise<Post> => {
         try {
             const response = await axiosInstance.get(`/posts/${postId}`);
-            const post = response.data.post;
+            const data = response.data as { post: any };
+            const post = data.post;
             return {
                 id: post.id,
                 description: post.description,
@@ -119,7 +119,8 @@ const postsApi = {
                     'Content-Type': 'multipart/form-data',
                 },
             });
-            const post = response.data.post;
+            const data = response.data as { post: any };
+            const post = data.post;
             return {
                 id: post.id,
                 description: post.description,
@@ -144,7 +145,7 @@ const postsApi = {
     updatePost: async (postId: string, postData: PostRequest): Promise<Post> => {
         try {
             const response = await axiosInstance.put(`/posts/${postId}`, postData);
-            return response.data;
+            return response.data as Post;
         } catch (error) {
             handleError(error, 'Error updating post');
             throw error;
@@ -162,12 +163,11 @@ const postsApi = {
     },
 
     // Like a post
-    likePost: async (postId: string): Promise<Post> => {
+    likePost: async (postId: string, userId: string): Promise<Post> => {
         try {
-            // TODO: Get actual user ID from auth context
-            const userId = 'current-user-id';
             const response = await axiosInstance.post(`/posts/${postId}/like?userId=${userId}`);
-            return response.data.post;
+            const data = response.data as { post: Post };
+            return data.post;
         } catch (error) {
             handleError(error, 'Error liking post');
             throw error;
@@ -175,12 +175,11 @@ const postsApi = {
     },
 
     // Unlike a post
-    unlikePost: async (postId: string): Promise<Post> => {
+    unlikePost: async (postId: string, userId: string): Promise<Post> => {
         try {
-            // TODO: Get actual user ID from auth context
-            const userId = 'current-user-id';
             const response = await axiosInstance.delete(`/posts/${postId}/like?userId=${userId}`);
-            return response.data.post;
+            const data = response.data as { post: Post };
+            return data.post;
         } catch (error) {
             handleError(error, 'Error unliking post');
             throw error;
@@ -188,9 +187,9 @@ const postsApi = {
     },
 
     // Save a post
-    savePost: async (postId: string): Promise<void> => {
+    savePost: async (postId: string, userId: string): Promise<void> => {
         try {
-            await axiosInstance.post(`/posts/${postId}/save`);
+            await axiosInstance.post(`/posts/${postId}/save?userId=${userId}`);
         } catch (error) {
             handleError(error, 'Error saving post');
             throw error;
@@ -198,9 +197,9 @@ const postsApi = {
     },
 
     // Unsave a post
-    unsavePost: async (postId: string): Promise<void> => {
+    unsavePost: async (postId: string, userId: string): Promise<void> => {
         try {
-            await axiosInstance.delete(`/posts/${postId}/save`);
+            await axiosInstance.delete(`/posts/${postId}/save?userId=${userId}`);
         } catch (error) {
             handleError(error, 'Error unsaving post');
             throw error;

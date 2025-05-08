@@ -31,12 +31,13 @@ type UserProfileProps = {
   posts: Post[];
   plans: LearningPlan[];
   progressUpdates: ProgressUpdate[];
+  isEditable?: boolean;
+  onEditClick?: () => void;
 };
 
-const UserProfile = ({ userProfile, posts, plans, progressUpdates }: UserProfileProps) => {
+const UserProfile = ({ userProfile, posts, plans, progressUpdates, isEditable, onEditClick }: UserProfileProps) => {
   const { theme } = useTheme();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'posts' | 'plans' | 'progress' | 'stats'>('posts');
   const [isFollowing, setIsFollowing] = useState(userProfile.isFollowing);
   const [followersCount, setFollowersCount] = useState(userProfile.followers);
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -45,13 +46,44 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates }: UserProfile
   
   const isCurrentUser = user?.id === userProfile.id;
   
-  const handleFollow = () => {
-    if (isFollowing) {
-      setFollowersCount(prev => prev - 1);
-    } else {
-      setFollowersCount(prev => prev + 1);
+  const handleFollow = async () => {
+    if (!user) {
+      // Handle unauthenticated user
+      console.log('Please log in to follow users');
+      return;
     }
-    setIsFollowing(!isFollowing);
+    
+    try {
+      // Optimistic UI update
+      if (isFollowing) {
+        setFollowersCount(prev => prev - 1);
+      } else {
+        setFollowersCount(prev => prev + 1);
+      }
+      setIsFollowing(!isFollowing);
+      
+      // Call API to update follow status - use proper error handling
+      // Note: The backend doesn't have follow/unfollow endpoints yet
+      // This is just a placeholder for when those endpoints are added
+      try {
+        // Replace with actual API call when the backend supports it
+        // const endpoint = isFollowing ? 'unfollow' : 'follow';
+        // await axios.post(`/api/users/${endpoint}/${userProfile.id}`);
+        console.log(`${isFollowing ? 'Unfollowed' : 'Followed'} user: ${userProfile.username}`);
+      } catch (error) {
+        console.error(`Error ${isFollowing ? 'unfollowing' : 'following'} user:`, error);
+        throw error; // Re-throw to be caught by outer catch
+      }
+    } catch (error) {
+      // Revert on error
+      console.error('Failed to update follow status:', error);
+      if (isFollowing) {
+        setFollowersCount(prev => prev + 1);
+      } else {
+        setFollowersCount(prev => prev - 1);
+      }
+      setIsFollowing(isFollowing); // Revert back
+    }
   };
   
   return (
@@ -82,7 +114,7 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates }: UserProfile
           
           {/* Action Buttons */}
           <div className="flex justify-end mb-10 md:mb-0">
-            {isCurrentUser ? (
+            {isEditable ? (
               <div className="flex space-x-3">
                 <button 
                   onClick={() => setShowEditProfile(true)}
@@ -143,50 +175,6 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates }: UserProfile
               </div>
             </div>
           </div>
-        </div>
-        
-        {/* Tabs */}
-        <div className="flex border-t border-gray-200 dark:border-slate-700">
-          <button
-            onClick={() => setActiveTab('posts')}
-            className={`flex-1 py-3 text-center font-medium text-sm transition ${
-              activeTab === 'posts'
-                ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}
-          >
-            Skill Posts
-          </button>
-          <button
-            onClick={() => setActiveTab('plans')}
-            className={`flex-1 py-3 text-center font-medium text-sm transition ${
-              activeTab === 'plans'
-                ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}
-          >
-            Learning Plans
-          </button>
-          <button
-            onClick={() => setActiveTab('progress')}
-            className={`flex-1 py-3 text-center font-medium text-sm transition ${
-              activeTab === 'progress'
-                ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}
-          >
-            Progress
-          </button>
-          <button
-            onClick={() => setActiveTab('stats')}
-            className={`flex-1 py-3 text-center font-medium text-sm transition ${
-              activeTab === 'stats'
-                ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}
-          >
-            Stats
-          </button>
         </div>
       </div>
       
@@ -342,7 +330,7 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates }: UserProfile
               </div>
             </div>
           </div>
-        )}
+        </div>
       </div>
       
       {/* Modals */}

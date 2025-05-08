@@ -26,6 +26,7 @@ export interface Post {
         createdAt: string;
     }>;
     likes: Like[];
+    savedByUsers?: string[];
     media?: Array<{
         id: string;
         type: 'image' | 'video';

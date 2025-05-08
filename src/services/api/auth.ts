@@ -43,12 +43,22 @@ export const handleOAuthCallback = (query: string): { token?: string; userId?: s
   
   if (params.has('token')) {
     const token = params.get('token') as string;
-    const userId = params.get('userId') as string;
+    const encodedUserId = params.get('userId');
+    const userId = encodedUserId ? decodeURIComponent(encodedUserId) : undefined;
     
     localStorage.setItem('token', token);
     if (userId) {
       localStorage.setItem('userId', userId);
       console.log('User ID stored in localStorage:', userId);
+      
+      // Also store minimal user data
+      localStorage.setItem('skillnet_user', JSON.stringify({
+        id: userId,
+        name: userId,
+        email: `${userId.toLowerCase().replace(/\s+/g, '.')}@example.com`,
+        username: userId.toLowerCase().replace(/\s+/g, '.'),
+      }));
+      console.log('Basic user data stored in localStorage, will be updated with full profile later');
     } else {
       console.warn('No user ID received from OAuth callback');
     }
@@ -84,7 +94,16 @@ export const login = async (email: string, password: string): Promise<{ success:
       localStorage.setItem('token', token);
       if (user && user.id) {
         localStorage.setItem('userId', user.id);
-        console.log('User ID stored in localStorage during login:', user.id);
+        
+        // Store complete user data in localStorage
+        localStorage.setItem('skillnet_user', JSON.stringify({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          username: user.username || user.email.split('@')[0],
+          profilePictureUrl: user.profilePictureUrl
+        }));
+        console.log('User data stored in localStorage during login:', user.id);
       }
       
       return { success: true, user };

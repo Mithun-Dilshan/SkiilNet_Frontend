@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getCurrentUser } from '../services/api/auth';
 
 const LoginPage = () => {
   const location = useLocation();
@@ -18,8 +19,44 @@ const LoginPage = () => {
   
   // If already logged in, redirect to home
   if (user) {
+    // Store user data in localStorage
+    localStorage.setItem('skillnet_user', JSON.stringify({
+      id: user.id,
+      name: user.name || 'User',
+      email: user.email || '',
+      username: user.username || user.email?.split('@')[0] || 'user',
+      profilePictureUrl: user.profilePictureUrl
+    }));
+    console.log("User data stored in localStorage:", user.id);
+    
     return <Navigate to="/" replace />;
   }
+  
+  // Effect to fetch and store user data when token is available
+  useEffect(() => {
+    const fetchAndStoreUserData = async () => {
+      const token = localStorage.getItem('token');
+      if (token && !localStorage.getItem('skillnet_user')) {
+        try {
+          const userData = await getCurrentUser();
+          if (userData) {
+            localStorage.setItem('skillnet_user', JSON.stringify({
+              id: userData.id,
+              name: userData.name,
+              email: userData.email,
+              username: userData.username || userData.email.split('@')[0],
+              profilePictureUrl: userData.profilePictureUrl
+            }));
+            console.log("User data fetched and stored in localStorage:", userData.id);
+          }
+        } catch (error) {
+          console.error("Error fetching user data for localStorage:", error);
+        }
+      }
+    };
+    
+    fetchAndStoreUserData();
+  }, []);
   
   const handleLogin = (provider: 'google' | 'github') => {
     try {

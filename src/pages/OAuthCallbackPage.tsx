@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getCurrentUser } from '../services/api/auth';
 
 const OAuthCallbackPage = () => {
   const location = useLocation();
@@ -14,17 +15,56 @@ const OAuthCallbackPage = () => {
 
     const params = new URLSearchParams(location.search);
     const token = params.get('token');
+    const encodedUserId = params.get('userId');
+    const userId = encodedUserId ? decodeURIComponent(encodedUserId) : null;
     const errorMsg = params.get('error');
 
     if (token) {
       console.log("Authentication successful, received token");
+      console.log("User ID from URL:", userId || "Not provided");
       
-      handleAuthCallback(token);
+      // Save user data to localStorage directly
+      if (userId) {
+        localStorage.setItem('userId', userId);
+        
+        // Also save a minimal user object until we get the full profile
+        localStorage.setItem('skillnet_user', JSON.stringify({
+          id: userId,
+          name: userId,
+          email: `${userId.toLowerCase().replace(/\s+/g, '.')}@example.com`,
+          username: userId.toLowerCase().replace(/\s+/g, '.'),
+        }));
+        console.log("Saved initial user data to localStorage:", userId);
+      }
+      
+      // Pass both token and userId to handleAuthCallback
+      handleAuthCallback(token, userId || undefined);
+      
+      // Try to get full user profile and save it
+      const saveUserProfile = async () => {
+        try {
+          const userData = await getCurrentUser();
+          if (userData) {
+            localStorage.setItem('skillnet_user', JSON.stringify({
+              id: userData.id,
+              name: userData.name,
+              email: userData.email,
+              username: userData.username || userData.email.split('@')[0],
+              profilePictureUrl: userData.profilePictureUrl
+            }));
+            console.log("User profile saved to localStorage:", userData.id);
+          }
+        } catch (error) {
+          console.error("Error saving user profile:", error);
+        }
+      };
+      
+      saveUserProfile();
       
       setTimeout(() => {
         console.log("Redirecting to home page after token processing");
         navigate('/', { replace: true });
-      }, 500);
+      }, 1000); // Increased timeout to give more time for user data to be saved
       
       return;
     }

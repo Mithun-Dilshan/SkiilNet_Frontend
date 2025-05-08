@@ -38,7 +38,6 @@ export const useNotification = () => {
   return context;
 };
 
-// Mock notification data
 const mockNotifications: Notification[] = [
   {
     id: '1',

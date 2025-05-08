@@ -14,6 +14,7 @@ type CommentSectionProps = {
 const CommentSection = ({ postId, onCommentCountChange }: CommentSectionProps) => {
   const { user } = useAuth();
   const { theme } = useTheme();
+  const [userId, setUserId] = useState<string>('');
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,6 +22,12 @@ const CommentSection = ({ postId, onCommentCountChange }: CommentSectionProps) =
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Get userId from auth or localStorage
+  useEffect(() => {
+    const storedUserId = localStorage.getItem('userId');
+    setUserId(user?.id || storedUserId || '');
+  }, [user]);
   
   const updateCommentCount = (newComments: Comment[]) => {
     setComments(newComments);
@@ -47,14 +54,14 @@ const CommentSection = ({ postId, onCommentCountChange }: CommentSectionProps) =
   
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newComment.trim() || !user || isSubmitting) return;
+    if (!newComment.trim() || !userId || isSubmitting) return;
     
     try {
       setIsSubmitting(true);
       setError(null);
       
       const commentData = {
-        userId: user.id,
+        userId: userId,
         content: newComment.trim()
       };
       
@@ -70,18 +77,18 @@ const CommentSection = ({ postId, onCommentCountChange }: CommentSectionProps) =
   };
   
   const handleEditComment = async () => {
-    if (!editContent.trim() || !editingCommentId || !user || isSubmitting) return;
+    if (!editContent.trim() || !editingCommentId || !userId || isSubmitting) return;
     
     try {
       setIsSubmitting(true);
       setError(null);
       
       const commentData = {
-        userId: user.id,
+        userId: userId,
         content: editContent.trim()
       };
       
-      await commentsApi.updateComment(editingCommentId, user.id, commentData);
+      await commentsApi.updateComment(editingCommentId, userId, commentData);
       
       const updatedComments = comments.map(comment => 
         comment.id === editingCommentId 
@@ -101,13 +108,13 @@ const CommentSection = ({ postId, onCommentCountChange }: CommentSectionProps) =
   };
   
   const handleDeleteComment = async (commentId: string) => {
-    if (!user || isSubmitting) return;
+    if (!userId || isSubmitting) return;
     
     try {
       setIsSubmitting(true);
       setError(null);
       
-      await commentsApi.deleteComment(commentId, user.id);
+      await commentsApi.deleteComment(commentId, userId);
       const updatedComments = comments.filter(comment => comment.id !== commentId);
       updateCommentCount(updatedComments);
     } catch (err) {
@@ -133,11 +140,11 @@ const CommentSection = ({ postId, onCommentCountChange }: CommentSectionProps) =
       </div>
       
       {/* Add comment form */}
-      {user ? (
+      {userId ? (
         <form onSubmit={handleSubmitComment} className="flex items-center space-x-2 mb-4">
           <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
             <span className="text-indigo-600 font-medium">
-              {user.name?.[0] || user.id[0]}
+              {user?.name?.[0] || userId[0] || 'U'}
             </span>
           </div>
           

@@ -6,13 +6,11 @@ const ProtectedRoute = () => {
   const { user, loading } = useAuth();
   const [hasToken, setHasToken] = useState<boolean>(false);
   
-  // Check for token on mount
   useEffect(() => {
     const token = localStorage.getItem('token');
     setHasToken(!!token);
   }, []);
   
-  // While checking authentication status, show loading
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -21,7 +19,6 @@ const ProtectedRoute = () => {
     );
   }
   
-  // If no user but we have a token, show loading while we wait for user data
   if (!user && hasToken) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -31,12 +28,10 @@ const ProtectedRoute = () => {
     );
   }
   
-  // If not authenticated and no token, redirect to login
   if (!user && !hasToken) {
     return <Navigate to="/login" replace />;
   }
   
-  // If authenticated or has token, render the protected content
   return <Outlet />;
 };
 

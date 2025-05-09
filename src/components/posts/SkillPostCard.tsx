@@ -95,20 +95,16 @@ const SkillPostCard = ({ post, onPostDeleted, onPostUpdated }: SkillPostCardProp
       setIsLoading(true);
       setError(null);
       
-      // Update the post first
       await postsApi.updatePost(post.id, {
         description: editDescription.trim(),
         file: editFile || undefined,
         userId: userId
       });
       
-      // Then fetch the updated post to get the latest data
       const updatedPost = await postsApi.getPost(post.id);
       
-      // Close the edit form
       setShowEditForm(false);
       
-      // Notify parent component with the full updated post
       onPostUpdated?.(updatedPost);
     } catch (error) {
       console.error('Error updating post:', error);
@@ -144,7 +140,6 @@ const SkillPostCard = ({ post, onPostDeleted, onPostUpdated }: SkillPostCardProp
     if (isLoading) return;
     
     if (!userId) {
-      // Try to get from localStorage one more time in case it was set after component mounted
       const storedUserId = localStorage.getItem('userId');
       if (!storedUserId) {
         setError('You must be logged in to like a post');
@@ -154,21 +149,17 @@ const SkillPostCard = ({ post, onPostDeleted, onPostUpdated }: SkillPostCardProp
     }
     
     try {
-      // Optimistic UI update
       setLiked(!liked);
       setLikesCount(prev => liked ? prev - 1 : prev + 1);
       
-      // Call the API with the user's ID
       const updatedPost = liked 
         ? await postsApi.unlikePost(post.id, userId)
         : await postsApi.likePost(post.id, userId);
       
-      // Update the parent component if needed
       onPostUpdated?.(updatedPost);
     } catch (error) {
       console.error('Error toggling like:', error);
       
-      // Revert UI on error
       setLiked(liked);
       setLikesCount(liked ? likesCount : likesCount);
       setError('Failed to update like status. Please try again.');
@@ -179,7 +170,6 @@ const SkillPostCard = ({ post, onPostDeleted, onPostUpdated }: SkillPostCardProp
     if (isLoading) return;
     
     if (!userId) {
-      // Try to get from localStorage one more time in case it was set after component mounted
       const storedUserId = localStorage.getItem('userId');
       if (!storedUserId) {
         setError('You must be logged in to save a post');
@@ -190,7 +180,6 @@ const SkillPostCard = ({ post, onPostDeleted, onPostUpdated }: SkillPostCardProp
     
     try {
       setIsLoading(true);
-      // Optimistic UI update
       setSaved(!saved);
       
       if (saved) {
@@ -200,7 +189,6 @@ const SkillPostCard = ({ post, onPostDeleted, onPostUpdated }: SkillPostCardProp
       }
     } catch (error) {
       console.error('Error toggling save:', error);
-      // Revert the optimistic update if the API call fails
       setSaved(saved);
     } finally {
       setIsLoading(false);
@@ -228,14 +216,27 @@ const SkillPostCard = ({ post, onPostDeleted, onPostUpdated }: SkillPostCardProp
      
       <div className="flex items-center justify-between p-4">
         <Link to={`/profile/${post.userId}`} className="flex items-center space-x-3">
-          <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
-            <span className="text-indigo-600 font-medium">
-              U
-            </span>
-          </div>
+          {(post as any).user?.profilePicture ? (
+            <img 
+              src={(post as any).user.profilePicture}
+              alt={(post as any).user.name || 'User avatar'} 
+              className="h-10 w-10 rounded-full object-cover" 
+            />
+          ) : (
+            <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
+              <span className="text-indigo-600 font-medium">
+                {(post as any).user?.name?.charAt(0) || 
+                 (post.userId?.charAt(0)?.toUpperCase()) || 'U'}
+              </span>
+            </div>
+          )}
           <div>
-            <h3 className="font-medium">User {post.userId}</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">@user{post.userId}</p>
+            <h3 className="font-medium">
+              {(post as any).user?.name || `User ${post.userId}`}
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              @{(post as any).user?.username || `user${post.userId}`}
+            </p>
           </div>
         </Link>
         
@@ -460,7 +461,7 @@ const SkillPostCard = ({ post, onPostDeleted, onPostUpdated }: SkillPostCardProp
               <img
                 className="w-full h-full object-cover"
                 src={post.media[currentSlide].url}
-                alt={`Post by ${post.userId}`}
+                alt={`Post by ${(post as any).user?.name || post.userId}`}
               />
             ) : Array.isArray(post.media) && post.media[currentSlide] && (
               <video

@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Filter } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import SkillPostCard from '../components/posts/SkillPostCard';
 import CreatePost from '../components/posts/CreatePost';
 import LearningPlanCard from '../components/learning/LearningPlanCard';
 import ProgressUpdateCard from '../components/progress/ProgressUpdateCard';
 import postsApi, { Post } from '../services/api/posts';
+import { getUserById } from '../services/api/auth';
 
 interface ContentBase {
   id: string;
@@ -65,7 +67,6 @@ interface ProgressUpdate extends ContentBase {
   };
 }
 
-// Mock data for learning plans and progress updates (we'll implement these later)
 const mockPlans: LearningPlan[] = [
   {
     id: 'plan-1',
@@ -141,38 +142,74 @@ const mockUpdates: ProgressUpdate[] = [
 
 const HomePage = () => {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const [feed, setFeed] = useState<(FeedPost | LearningPlan | ProgressUpdate)[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [feedFilter, setFeedFilter] = useState<'all' | 'posts' | 'plans' | 'progress'>('all');
+  
+  const [userCache, setUserCache] = useState<Record<string, any>>({});
   
   const fetchFeed = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // Fetch real posts from the API
       const posts = await postsApi.getAllPosts();
       
-      // Transform posts to include user info (TODO: Replace with real user data)
-      const transformedPosts: FeedPost[] = posts.map(post => ({
-        ...post,
-        type: 'post',
-        user: {
-          id: post.userId,
-          name: 'User ' + post.userId,
-          username: 'user' + post.userId,
-          profilePicture: 'https://via.placeholder.com/100'
-        }
-      }));
+      const userDataMap: Record<string, any> = {...userCache};
       
-      // Combine with mock data for now
+      const postUserPromises = posts.map(async (post) => {
+        if (userDataMap[post.userId]) {
+          return {
+            ...post,
+            type: 'post' as const,
+            user: userDataMap[post.userId]
+          } as FeedPost;
+        }
+        
+        try {
+          const userData = await getUserById(post.userId);
+          
+          if (userData) {
+            userDataMap[post.userId] = {
+              id: userData.id,
+              name: userData.name || 'User ' + post.userId,
+              username: userData.username || 'user' + post.userId,
+              profilePicture: userData.profilePictureUrl || 'https://via.placeholder.com/100'
+            };
+            
+            return {
+              ...post,
+              type: 'post' as const,
+              user: userDataMap[post.userId]
+            } as FeedPost;
+          }
+        } catch (err) {
+          console.error(`Error fetching user data for post ${post.id}:`, err);
+        }
+        
+        return {
+          ...post,
+          type: 'post' as const,
+          user: {
+            id: post.userId,
+            name: 'User ' + post.userId,
+            username: 'user' + post.userId,
+            profilePicture: 'https://via.placeholder.com/100'
+          }
+        } as FeedPost;
+      });
+      
+      const transformedPosts = await Promise.all(postUserPromises);
+      
+      setUserCache(userDataMap);
+      
       const allContent = [
         ...transformedPosts,
         ...mockPlans,
         ...mockUpdates
       ].sort((a, b) => {
-        // Get the date from either the date field (posts) or createdAt field (other content)
         const getDate = (item: typeof a) => {
           if ('date' in item) {
             return new Date(item.date);
@@ -193,25 +230,47 @@ const HomePage = () => {
   };
 
   const handlePostDeleted = (postId: string) => {
-    // Remove the deleted post from the feed
     setFeed(prevFeed => prevFeed.filter(item => 
       item.type !== 'post' || item.id !== postId
     ));
   };
 
-  const handlePostUpdated = (updatedPost: Post) => {
-    // Update the post in the feed
+  const handlePostUpdated = async (updatedPost: Post) => {
+    let userData = userCache[updatedPost.userId];
+    
+    if (!userData) {
+      try {
+        const fetchedUser = await getUserById(updatedPost.userId);
+        if (fetchedUser) {
+          userData = {
+            id: fetchedUser.id,
+            name: fetchedUser.name || 'User ' + updatedPost.userId,
+            username: fetchedUser.username || 'user' + updatedPost.userId,
+            profilePicture: fetchedUser.profilePictureUrl || 'https://via.placeholder.com/100'
+          };
+          
+          setUserCache(prev => ({
+            ...prev,
+            [updatedPost.userId]: userData
+          }));
+        }
+      } catch (err) {
+        console.error(`Error fetching user data for updated post:`, err);
+        userData = {
+          id: updatedPost.userId,
+          name: 'User ' + updatedPost.userId,
+          username: 'user' + updatedPost.userId,
+          profilePicture: 'https://via.placeholder.com/100'
+        };
+      }
+    }
+    
     setFeed(prevFeed => prevFeed.map(item => {
       if (item.type === 'post' && item.id === updatedPost.id) {
         return {
           ...updatedPost,
           type: 'post',
-          user: {
-            id: updatedPost.userId,
-            name: 'User ' + updatedPost.userId,
-            username: 'user' + updatedPost.userId,
-            profilePicture: 'https://via.placeholder.com/100'
-          }
+          user: userData
         } as FeedPost;
       }
       return item;
@@ -222,110 +281,86 @@ const HomePage = () => {
     fetchFeed();
   }, []);
   
-  // Filter feed based on selected filter
-  const filteredFeed = feed.filter(item => {
-    if (feedFilter === 'all') return true;
-    return item.type === feedFilter.slice(0, -1) as 'post' | 'plan' | 'update';
-  });
-  
   return (
-    <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Your Feed</h1>
-      
-      {/* Create Post Form */}
-      <CreatePost onPostCreated={fetchFeed} />
-      
-      {/* Feed Filters */}
-      <div className="flex items-center space-x-4 mb-6 overflow-x-auto pb-2">
-        <button
-          onClick={() => setFeedFilter('all')}
-          className={`px-4 py-2 rounded-full text-sm font-medium transition whitespace-nowrap ${
-            feedFilter === 'all'
-              ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200'
-              : 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
-          }`}
-        >
-          All Content
-        </button>
-        <button
-          onClick={() => setFeedFilter('posts')}
-          className={`px-4 py-2 rounded-full text-sm font-medium transition whitespace-nowrap ${
-            feedFilter === 'posts'
-              ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200'
-              : 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
-          }`}
-        >
-          Skill Posts
-        </button>
-        <button
-          onClick={() => setFeedFilter('plans')}
-          className={`px-4 py-2 rounded-full text-sm font-medium transition whitespace-nowrap ${
-            feedFilter === 'plans'
-              ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200'
-              : 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
-          }`}
-        >
-          Learning Plans
-        </button>
-        <button
-          onClick={() => setFeedFilter('progress')}
-          className={`px-4 py-2 rounded-full text-sm font-medium transition whitespace-nowrap ${
-            feedFilter === 'progress'
-              ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200'
-              : 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
-          }`}
-        >
-          Progress Updates
-        </button>
+    <div className="space-y-6">
+      {/* Profile Quick Action */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <h1 className="text-2xl font-bold">Feed</h1>
+          {feedFilter === 'all' && (
+            <div className={`rounded-full ${theme === 'dark' ? 'bg-indigo-900' : 'bg-indigo-100'} flex items-center px-3 py-1`}>
+              <Sparkles className="h-4 w-4 text-indigo-600 mr-1" />
+              <span className="text-sm text-indigo-600">For You</span>
+            </div>
+          )}
+        </div>
+        <div>
+          <select
+            value={feedFilter}
+            onChange={(e) => setFeedFilter(e.target.value as any)}
+            className={`px-3 py-2 rounded-lg ${
+              theme === 'dark' 
+                ? 'bg-slate-700 text-white border-slate-600' 
+                : 'bg-white text-gray-900 border-gray-200'
+            } border`}
+          >
+            <option value="all">All Content</option>
+            <option value="posts">Posts Only</option>
+            <option value="plans">Learning Plans</option>
+            <option value="progress">Progress Updates</option>
+          </select>
+        </div>
       </div>
       
-      {/* Error Message */}
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
-        </div>
-      )}
+      <CreatePost onPostCreated={fetchFeed} />
       
-      {/* Feed Content */}
+  
       {loading ? (
         <div className="flex justify-center py-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
         </div>
       ) : error ? (
-        <div className="text-center py-8">
-          <p className="text-red-500">{error}</p>
-          <button
-            onClick={fetchFeed}
-            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
-          >
-            Try Again
-          </button>
-        </div>
-      ) : filteredFeed.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-          No content to display
+        <div className="p-6 bg-red-50 text-red-500 rounded-xl">
+          {error}
         </div>
       ) : (
         <div className="space-y-6">
-          {filteredFeed.map(item => {
-            switch (item.type) {
-              case 'post':
-                return (
-                  <SkillPostCard 
-                    key={item.id} 
-                    post={item} 
-                    onPostDeleted={handlePostDeleted}
-                    onPostUpdated={handlePostUpdated}
-                  />
-                );
-              case 'plan':
-                return <LearningPlanCard key={item.id} plan={item} />;
-              case 'update':
-                return <ProgressUpdateCard key={item.id} update={item} />;
-              default:
+          {feed.length === 0 ? (
+            <div className={`p-6 text-center rounded-xl ${theme === 'dark' ? 'bg-slate-800' : 'bg-white'} shadow-md`}>
+              <p className="text-gray-500 dark:text-gray-400">No content to display. Follow more users or create your first post!</p>
+            </div>
+          ) : (
+            feed
+              .filter(item => {
+                if (feedFilter === 'all') return true;
+                if (feedFilter === 'posts') return item.type === 'post';
+                if (feedFilter === 'plans') return item.type === 'plan';
+                if (feedFilter === 'progress') return item.type === 'update';
+                return true;
+              })
+              .map(item => {
+                if (item.type === 'post') {
+                  return (
+                    <SkillPostCard
+                      key={item.id}
+                      post={item}
+                      onPostDeleted={handlePostDeleted}
+                      onPostUpdated={handlePostUpdated}
+                    />
+                  );
+                }
+                
+                if (item.type === 'plan') {
+                  return <LearningPlanCard key={item.id} plan={item} />;
+                }
+                
+                if (item.type === 'update') {
+                  return <ProgressUpdateCard key={item.id} update={item} />;
+                }
+                
                 return null;
-            }
-          })}
+              })
+          )}
         </div>
       )}
     </div>

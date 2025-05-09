@@ -19,7 +19,6 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Initialize userId from auth context or localStorage
   useEffect(() => {
     const storedUserId = localStorage.getItem('userId') || '';
     setUserId(user?.id || storedUserId);
@@ -64,7 +63,6 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
     }
 
     if (!userId) {
-      // Try to get from localStorage one more time in case it was set after component mounted
       const storedUserId = localStorage.getItem('userId');
       if (!storedUserId) {
         setError('You must be logged in to create a post');

@@ -39,6 +39,12 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates, isEditable, o
   const [followerCount, setFollowerCount] = useState(userProfile.followerCount || userProfile.followers || 0);
   const [followingCount, setFollowingCount] = useState(userProfile.followingCount || userProfile.following || 0);
   
+  // Ensure we always have a username value
+  const displayUsername = userProfile.username || 
+    userProfile.id?.toLowerCase().replace(/\s+/g, '.') || 
+    userProfile.name?.toLowerCase().replace(/\s+/g, '.') || 
+    'user';
+  
   // Determine if this is the current user's profile
   const isCurrentUser = user && (
     user.id === userProfile.id || 
@@ -171,7 +177,7 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates, isEditable, o
           {/* User Info */}
           <div className="mt-8">
             <h1 className="text-2xl font-bold">{userProfile.name}</h1>
-            <p className="text-gray-500 dark:text-gray-400">@{userProfile.username}</p>
+            <p className="text-gray-500 dark:text-gray-400">@{displayUsername}</p>
             
             {userProfile.bio && (
               <p className="mt-2 text-gray-700 dark:text-gray-300">{userProfile.bio}</p>

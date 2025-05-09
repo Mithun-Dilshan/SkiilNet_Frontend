@@ -30,9 +30,7 @@ const defaultUserData: UserProfileState = {
   isFollowing: false
 };
 
-/**
- * Custom hook for user profile operations
- */
+
 export function useUserProfile(options: UseUserProfileOptions = {}) {
   const { userId: targetUserId, initialLoad = true } = options;
   const { user } = useAuth();
@@ -46,8 +44,8 @@ export function useUserProfile(options: UseUserProfileOptions = {}) {
   });
   const [updateSuccess, setUpdateSuccess] = useState(false);
   const [updateError, setUpdateError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Determine if this is the current user's profile
   const isCurrentUserProfile = (): boolean => {
     if (!user) return false;
     
@@ -61,7 +59,6 @@ export function useUserProfile(options: UseUserProfileOptions = {}) {
             user.name?.toLowerCase() === currentUsername);
   };
   
-  // Handle editing form changes
   const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setEditedProfile(prev => ({
@@ -70,7 +67,6 @@ export function useUserProfile(options: UseUserProfileOptions = {}) {
     }));
   };
   
-  // Handle profile update submission
   const handleProfileUpdate = async () => {
     if (!user || !user.id) {
       setUpdateError('You must be logged in to update your profile');
@@ -78,9 +74,9 @@ export function useUserProfile(options: UseUserProfileOptions = {}) {
     }
     
     try {
+      setIsSubmitting(true);
       setUpdateError('');
       
-      // Update local state immediately for responsive UI
       setUserData(prev => ({
         ...prev,
         name: editedProfile.fullName || prev.name,
@@ -88,22 +84,17 @@ export function useUserProfile(options: UseUserProfileOptions = {}) {
         profilePicture: editedProfile.profilePictureUrl || prev.profilePicture
       }));
       
-      // Get the stored user data to find the MongoDB ID
       const storedUser = getStoredUserData();
-      // Determine the best ID to use - prefer MongoDB ID format (24 char hex)
       let updateId = user.id;
       
-      // If user.id doesn't look like a MongoDB ID but we have a stored ID that does, use that
       if (!user.id.match(/^[0-9a-f]{24}$/i) && storedUser?.id?.match(/^[0-9a-f]{24}$/i)) {
         console.log(`Using stored MongoDB ID ${storedUser.id} instead of ${user.id} for update`);
         updateId = storedUser.id;
       }
       
-      // With our improved backend, we can now use any identifier - name, email, or ID
-      // The backend will handle finding the correct user
+    
       console.log(`Updating profile with identifier: ${updateId}`);
       
-      // Send API request with the identifier
       const result = await updateUserProfile(updateId, {
         fullName: editedProfile.fullName,
         bio: editedProfile.bio,
@@ -116,7 +107,6 @@ export function useUserProfile(options: UseUserProfileOptions = {}) {
         setTimeout(() => setUpdateSuccess(false), 3000);
         setIsEditing(false);
         
-        // Refresh profile data from the server to ensure we have the latest
         fetchUserProfile(updateId);
       } else {
         setUpdateError('Profile update only saved locally. Changes will be synced when you reconnect.');
@@ -140,10 +130,11 @@ export function useUserProfile(options: UseUserProfileOptions = {}) {
         setIsEditing(false);
         setUpdateError('');
       }, 3000);
+    } finally {
+      setIsSubmitting(false);
     }
   };
   
-  // Fetch user profile data
   const fetchUserProfile = async (userId?: string) => {
     const profileId = userId || targetUserId || (user?.id ? user.id : undefined);
     
@@ -156,13 +147,11 @@ export function useUserProfile(options: UseUserProfileOptions = {}) {
     setLoading(true);
     console.log(`Fetching profile for: ${profileId}`);
     
-    // Debug current auth state
     const token = localStorage.getItem('token');
     console.log(`Auth token exists: ${!!token}`);
     console.log(`Current user in context:`, user ? `ID: ${user.id}, Name: ${user.name}` : 'none');
     
     try {
-      // First check if the provided profileId is already a MongoDB ID
       if (profileId.match(/^[0-9a-f]{24}$/i)) {
         console.log(`Profile ID is a MongoDB ID: ${profileId}, using directly`);
         try {
@@ -175,11 +164,10 @@ export function useUserProfile(options: UseUserProfileOptions = {}) {
           }
         } catch (error: any) {
           console.error(`Error with MongoDB ID:`, error.message);
-          // Continue to other methods
-        }
+        }         
+
       }
       
-      // If the profileId is a name or email, use it directly with our improved backend
       console.log(`Trying profile lookup with identifier: ${profileId}`);
       try {
         const apiData = await getUserProfile(profileId);
@@ -191,13 +179,10 @@ export function useUserProfile(options: UseUserProfileOptions = {}) {
         }
       } catch (error: any) {
         console.error(`Error with identifier ${profileId}:`, error.message);
-        // Continue to other methods
       }
       
-      // Get the stored user data which may have actual MongoDB IDs
       const storedUser = getStoredUserData();
       
-      // If we're looking for the current user by name/email, use their stored ID if available
       if (storedUser && 
           (profileId.toLowerCase() === storedUser.name?.toLowerCase() ||
            profileId.toLowerCase() === storedUser.username?.toLowerCase() ||
@@ -217,9 +202,8 @@ export function useUserProfile(options: UseUserProfileOptions = {}) {
         }
       }
       
-      // IMPORTANT: As a last resort, try with the known MongoDB ID
-      // from the database to make sure we can connect to the backend
-      const hardcodedMongoDBId = "681e3c071b66872f18bcae12"; // User ID not Profile ID
+  
+      const hardcodedMongoDBId = "681e3c071b66872f18bcae12"; 
       console.log(`Trying hardcoded MongoDB User ID for testing: ${hardcodedMongoDBId}`);
       try {
         const apiData = await getUserProfile(hardcodedMongoDBId);
@@ -231,7 +215,6 @@ export function useUserProfile(options: UseUserProfileOptions = {}) {
         }
       } catch (error: any) {
         console.error(`Error with hardcoded ID:`, error.message);
-        // Continue to other methods
       }
       
       console.log(`No profile data from API, using local fallback for ${profileId}`);
@@ -247,45 +230,74 @@ export function useUserProfile(options: UseUserProfileOptions = {}) {
     }
   };
   
-  // Helper method to update profile from API data
   const updateProfileFromApiData = (apiData: UserProfileApiResponse) => {
-    // Transform API data to our UI format
-    const profileData: UserProfileState = {
-      id: apiData.userId,
-      name: apiData.fullName || apiData.userId,
-      username: apiData.userId,
-      profilePicture: apiData.profilePictureUrl,
-      bio: apiData.bio,
-      followers: 0,
-      following: 0,
-      isFollowing: false
-    };
+    const storedUser = getStoredUserData();
     
-    setUserData(profileData);
+    console.log('API profile data:', apiData);
+    console.log('Stored user data:', storedUser);
+    
+    const name = apiData.fullName || apiData.name || storedUser?.name || '';
+    
+   
+    let username = '';
+    
+    if (apiData.username) {
+      username = apiData.username;
+    } else if (storedUser?.username) {
+      username = storedUser.username;
+    } else if (apiData.userId) {
+      username = apiData.userId;
+    } else if (apiData.email) {
+      username = apiData.email.split('@')[0]; 
+    } else if (name) {
+      username = name.toLowerCase().replace(/\s+/g, '.'); 
+    } else if (storedUser?.id) {
+      username = storedUser.id; 
+    }
+    
+    setUserData({
+      id: apiData.userId || apiData.id || storedUser?.id || '',
+      name: name,
+      username: username,
+      profilePicture: apiData.profilePictureUrl || storedUser?.profilePictureUrl || '',
+      bio: apiData.bio || storedUser?.bio || '',
+      followers: apiData.followerCount || 0,
+      following: apiData.followingCount || 0,
+      isFollowing: apiData.following || apiData.isFollowing || false
+    });
     
     setEditedProfile({
-      fullName: apiData.fullName || '',
-      bio: apiData.bio || '',
-      profilePictureUrl: apiData.profilePictureUrl || ''
+      fullName: name,
+      bio: apiData.bio || storedUser?.bio || '',
+      profilePictureUrl: apiData.profilePictureUrl || storedUser?.profilePictureUrl || ''
     });
   };
   
-  // Helper method for local data fallback
   const useLocalDataFallback = (profileId: string) => {
-    // Try to use stored user data if it exists and matches the profile ID
     const storedUser = getStoredUserData();
     
-    if (storedUser && 
-        (storedUser.id === profileId || 
-         storedUser.username.toLowerCase() === profileId.toLowerCase() || 
-         storedUser.name.toLowerCase() === profileId.toLowerCase())) {
+    console.log('Using local data fallback for:', profileId);
+    console.log('Stored user data:', storedUser);
+    
+    const isStoredUser = storedUser && (
+      storedUser.id === profileId || 
+      storedUser.username?.toLowerCase() === profileId.toLowerCase() || 
+      storedUser.name?.toLowerCase() === profileId.toLowerCase() ||
+      storedUser.email?.toLowerCase() === profileId.toLowerCase()
+    );
+    
+    if (isStoredUser) {
+      const username = storedUser.username || 
+                       storedUser.email?.split('@')[0] || 
+                       storedUser.name?.toLowerCase().replace(/\s+/g, '.') ||
+                       storedUser.id;
       
       setUserData({
         id: storedUser.id,
-        name: storedUser.name || '',
-        username: storedUser.username || '',
-        profilePicture: storedUser.profilePictureUrl || '',
-        bio: storedUser.bio || '',
+        name: storedUser.name || storedUser.id,
+        username: username,
+        profilePicture: storedUser.profilePictureUrl,
+        bio: storedUser.bio,
         followers: 0,
         following: 0,
         isFollowing: false
@@ -297,17 +309,34 @@ export function useUserProfile(options: UseUserProfileOptions = {}) {
         profilePictureUrl: storedUser.profilePictureUrl || ''
       });
     } else {
-      // Create minimal profile data if no matching stored user
+ 
+      let name = profileId;
+      let username = profileId.toLowerCase().replace(/\s+/g, '.');
+      
+      if (profileId.includes('@')) {
+        username = profileId.split('@')[0];
+        name = username; 
+      }
+      
       setUserData({
-        ...defaultUserData,
         id: profileId,
-        name: profileId,
-        username: profileId
+        name: name,
+        username: username,
+        profilePicture: '',
+        bio: '',
+        followers: 0,
+        following: 0,
+        isFollowing: false
+      });
+      
+      setEditedProfile({
+        fullName: '',
+        bio: '',
+        profilePictureUrl: ''
       });
     }
   };
   
-  // Load profile on mount or when dependencies change
   useEffect(() => {
     if (initialLoad) {
       fetchUserProfile();
@@ -322,6 +351,7 @@ export function useUserProfile(options: UseUserProfileOptions = {}) {
     editedProfile,
     updateSuccess,
     updateError,
+    isSubmitting,
     isCurrentUserProfile: isCurrentUserProfile(),
     handleEditChange,
     handleProfileUpdate,

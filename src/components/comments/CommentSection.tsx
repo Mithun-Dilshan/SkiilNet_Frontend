@@ -5,10 +5,18 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import commentsApi, { Comment } from '../../services/api/comments';
+import { getUserById } from '../../services/api/auth';
 
 type CommentSectionProps = {
   postId: string;
   onCommentCountChange?: (count: number) => void;
+};
+
+type UserData = {
+  id: string;
+  name: string;
+  username: string;
+  profilePicture?: string;
 };
 
 const CommentSection = ({ postId, onCommentCountChange }: CommentSectionProps) => {
@@ -22,12 +30,56 @@ const CommentSection = ({ postId, onCommentCountChange }: CommentSectionProps) =
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [userCache, setUserCache] = useState<Record<string, UserData>>({});
+  const [currentUser, setCurrentUser] = useState<UserData | null>(null);
   
-  // Get userId from auth or localStorage
   useEffect(() => {
     const storedUserId = localStorage.getItem('userId');
-    setUserId(user?.id || storedUserId || '');
+    const id = user?.id || storedUserId || '';
+    setUserId(id);
+    
+    if (id && !userCache[id]) {
+      fetchUserData(id).then(userData => {
+        if (userData) {
+          setCurrentUser(userData);
+        }
+      });
+    } else if (id && userCache[id]) {
+      setCurrentUser(userCache[id]);
+    }
   }, [user]);
+  
+  const fetchUserData = async (id: string): Promise<UserData | null> => {
+    if (!id) return null;
+    
+    try {
+      if (userCache[id]) {
+        return userCache[id];
+      }
+      
+      const userData = await getUserById(id);
+      if (userData) {
+        const userInfo = {
+          id: userData.id,
+          name: userData.name || 'User ' + id,
+          username: userData.username || 'user' + id,
+          profilePicture: userData.profilePictureUrl || undefined
+        };
+        
+        // Update cache
+        setUserCache(prev => ({
+          ...prev,
+          [id]: userInfo
+        }));
+        
+        return userInfo;
+      }
+    } catch (err) {
+      console.error(`Error fetching user data for ${id}:`, err);
+    }
+    
+    return null;
+  };
   
   const updateCommentCount = (newComments: Comment[]) => {
     setComments(newComments);
@@ -40,6 +92,15 @@ const CommentSection = ({ postId, onCommentCountChange }: CommentSectionProps) =
       setError(null);
       const fetchedComments = await commentsApi.getCommentsByPostId(postId);
       updateCommentCount(fetchedComments);
+      
+      const userIds = [...new Set(fetchedComments.map(comment => comment.userId))];
+      
+      const newUserIds = userIds.filter(id => !userCache[id]);
+      
+      if (newUserIds.length > 0) {
+        const userDataPromises = newUserIds.map(fetchUserData);
+        await Promise.all(userDataPromises);
+      }
     } catch (err) {
       console.error('Error fetching comments:', err);
       setError('Failed to load comments. Please try again.');
@@ -67,7 +128,9 @@ const CommentSection = ({ postId, onCommentCountChange }: CommentSectionProps) =
       
       const createdComment = await commentsApi.createComment(postId, commentData);
       updateCommentCount([createdComment, ...comments]);
+      
       setNewComment('');
+      
     } catch (err) {
       console.error('Error creating comment:', err);
       setError('Failed to post comment. Please try again.');
@@ -132,21 +195,27 @@ const CommentSection = ({ postId, onCommentCountChange }: CommentSectionProps) =
   
   return (
     <div className={`border-t ${theme === 'dark' ? 'border-slate-700' : 'border-gray-100'} px-4 py-3`}>
-      {/* Comment count */}
       <div className="mb-4">
         <h3 className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
           {comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}
         </h3>
       </div>
       
-      {/* Add comment form */}
       {userId ? (
         <form onSubmit={handleSubmitComment} className="flex items-center space-x-2 mb-4">
-          <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
-            <span className="text-indigo-600 font-medium">
-              {user?.name?.[0] || userId[0] || 'U'}
-            </span>
-          </div>
+          {currentUser?.profilePicture ? (
+            <img 
+              src={currentUser.profilePicture}
+              alt={currentUser.name}
+              className="h-8 w-8 rounded-full object-cover"
+            />
+          ) : (
+            <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
+              <span className="text-indigo-600 font-medium">
+                {currentUser?.name?.[0] || userId[0]?.toUpperCase() || 'U'}
+              </span>
+            </div>
+          )}
           
           <input
             type="text"
@@ -179,14 +248,12 @@ const CommentSection = ({ postId, onCommentCountChange }: CommentSectionProps) =
         </p>
       )}
       
-      {/* Error message */}
       {error && (
         <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
           {error}
         </div>
       )}
       
-      {/* Comments list */}
       {loading ? (
         <div className="flex justify-center py-4">
           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
@@ -198,89 +265,101 @@ const CommentSection = ({ postId, onCommentCountChange }: CommentSectionProps) =
               No comments yet. Be the first to comment!
             </p>
           ) : (
-            sortedComments.map(comment => (
-              <div key={comment.id} className="flex space-x-3">
-                <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                  <span className="text-indigo-600 font-medium">
-                    {comment.userId[0]}
-                  </span>
-                </div>
-                
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2">
-                    <Link 
-                      to={`/profile/${comment.userId}`} 
-                      className="font-medium text-gray-900 dark:text-white hover:underline"
-                    >
-                      User {comment.userId}
-                    </Link>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                      {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
-                    </span>
-                  </div>
-                  
-                  {editingCommentId === comment.id ? (
-                    <div className="mt-1 flex items-center space-x-2">
-                      <input
-                        type="text"
-                        value={editContent}
-                        onChange={(e) => setEditContent(e.target.value)}
-                        className={`flex-1 rounded py-1 px-2 ${
-                          theme === 'dark' 
-                            ? 'bg-slate-700 text-white border-slate-600' 
-                            : 'bg-white text-gray-900 border-gray-200'
-                        } border focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-                        disabled={isSubmitting}
-                      />
-                      <button
-                        onClick={handleEditComment}
-                        disabled={!editContent.trim() || isSubmitting}
-                        className="text-sm text-indigo-600 hover:text-indigo-700 disabled:opacity-50"
-                      >
-                        Save
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditingCommentId(null);
-                          setEditContent('');
-                        }}
-                        className="text-sm text-gray-500 hover:text-gray-700"
-                      >
-                        Cancel
-                      </button>
-                    </div>
+            sortedComments.map(comment => {
+              const commentUser = userCache[comment.userId];
+              
+              return (
+                <div key={comment.id} className="flex space-x-3">
+                  {commentUser?.profilePicture ? (
+                    <img 
+                      src={commentUser.profilePicture}
+                      alt={commentUser.name}
+                      className="h-8 w-8 rounded-full object-cover"
+                    />
                   ) : (
-                    <p className={`mt-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {comment.content}
-                    </p>
-                  )}
-                  
-                  {user && user.id === comment.userId && !editingCommentId && (
-                    <div className="mt-1 flex items-center space-x-2">
-                      <button
-                        onClick={() => {
-                          setEditingCommentId(comment.id);
-                          setEditContent(comment.content);
-                        }}
-                        className="text-sm text-gray-500 hover:text-gray-700 flex items-center"
-                        disabled={isSubmitting}
-                      >
-                        <Edit2 className="h-4 w-4 mr-1" />
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteComment(comment.id)}
-                        className="text-sm text-red-500 hover:text-red-700 flex items-center"
-                        disabled={isSubmitting}
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        Delete
-                      </button>
+                    <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                      <span className="text-indigo-600 font-medium">
+                        {commentUser?.name?.[0] || comment.userId[0]?.toUpperCase() || 'U'}
+                      </span>
                     </div>
                   )}
+                  
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <Link 
+                        to={`/profile/${comment.userId}`} 
+                        className="font-medium text-gray-900 dark:text-white hover:underline"
+                      >
+                        {commentUser?.name || `User ${comment.userId}`}
+                      </Link>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
+                      </span>
+                    </div>
+                    
+                    {editingCommentId === comment.id ? (
+                      <div className="mt-1 flex items-center space-x-2">
+                        <input
+                          type="text"
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          className={`flex-1 rounded py-1 px-2 ${
+                            theme === 'dark' 
+                              ? 'bg-slate-700 text-white border-slate-600' 
+                              : 'bg-white text-gray-900 border-gray-200'
+                          } border focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                          disabled={isSubmitting}
+                        />
+                        <button
+                          onClick={handleEditComment}
+                          disabled={!editContent.trim() || isSubmitting}
+                          className="text-sm text-indigo-600 hover:text-indigo-700 disabled:opacity-50"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingCommentId(null);
+                            setEditContent('');
+                          }}
+                          className="text-sm text-gray-500 hover:text-gray-700"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <p className={`mt-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {comment.content}
+                      </p>
+                    )}
+                    
+                    {user && user.id === comment.userId && !editingCommentId && (
+                      <div className="mt-1 flex items-center space-x-2">
+                        <button
+                          onClick={() => {
+                            setEditingCommentId(comment.id);
+                            setEditContent(comment.content);
+                          }}
+                          className="text-sm text-gray-500 hover:text-gray-700 flex items-center"
+                          disabled={isSubmitting}
+                        >
+                          <Edit2 className="h-4 w-4 mr-1" />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteComment(comment.id)}
+                          className="text-sm text-red-500 hover:text-red-700 flex items-center"
+                          disabled={isSubmitting}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}

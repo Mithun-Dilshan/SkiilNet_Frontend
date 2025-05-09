@@ -14,6 +14,7 @@ import TestLearningPlanPage from './pages/TestLearningPlanPage';
 import CreateLearningPlanPage from './pages/CreateLearningPlanPage';
 import EditLearningPlanPage from './pages/EditLearningPlanPage';
 import OAuthCallbackPage from './pages/OAuthCallbackPage';
+import AllUsersPage from './pages/AllUsersPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 function App() {
@@ -29,6 +30,7 @@ function App() {
                 <Route element={<ProtectedRoute />}>
                   <Route path="/" element={<HomePage />} />
                   <Route path="/profile/:username" element={<ProfilePage />} />
+                  <Route path="/users" element={<AllUsersPage />} />
                   <Route path="/search" element={<SearchPage />} />
                   <Route path="/notifications" element={<NotificationsPage />} />
                   <Route path="/learning-plan/:id" element={<LearningPlanPage />} />

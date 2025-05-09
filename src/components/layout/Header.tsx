@@ -1,10 +1,12 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Bell, Sun, Moon, User, Menu } from 'lucide-react';
+import { Search, Bell, Sun, Moon, User, Menu, Edit, X } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import NotificationDropdown from '../notifications/NotificationDropdown';
+import EditProfileForm from '../user/EditProfileForm';
+import useUserProfile from '../../hooks/useUserProfile';
 
 const Header = () => {
   const navigate = useNavigate();
@@ -14,6 +16,16 @@ const Header = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  
+  const {
+    editedProfile,
+    updateSuccess,
+    updateError,
+    isSubmitting,
+    handleEditChange,
+    handleProfileUpdate
+  } = useUserProfile({ userId: user?.username, initialLoad: false });
   
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,28 +88,31 @@ const Header = () => {
           </div>
           
           {/* User Menu */}
-          <Link to={`/profile/${user?.username}`} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700">
-            {user?.profilePicture ? (
-              <img 
-                src={user.profilePicture} 
-                alt={user.name} 
-                className="h-6 w-6 rounded-full object-cover"
-              />
-            ) : (
-              <User className="h-5 w-5" />
-            )}
-          </Link>
+          <div className="relative">
+            <Link to={`/profile/${user?.username}`} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700">
+              {user?.profilePictureUrl ? (
+                <img 
+                  src={user.profilePictureUrl} 
+                  alt={user.name} 
+                  className="h-6 w-6 rounded-full object-cover"
+                />
+              ) : (
+                <User className="h-5 w-5" />
+              )}
+            </Link>
+          </div>
           
           <button 
             className="md:hidden p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700"
             onClick={() => setShowMobileMenu(!showMobileMenu)}
             aria-label="Menu"
           >
-            <Menu className="h-5 w-5" />
+            {showMobileMenu ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
       </div>
       
+      {/* Mobile search */}
       <div className="md:hidden px-4 pb-3">
         <form onSubmit={handleSearch} className="relative">
           <input
@@ -112,6 +127,75 @@ const Header = () => {
           <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
         </form>
       </div>
+      
+      {/* Mobile menu */}
+      {showMobileMenu && (
+        <div className={`md:hidden ${theme === 'dark' ? 'bg-slate-800' : 'bg-white'} px-4 pb-4 border-t ${theme === 'dark' ? 'border-slate-700' : 'border-gray-200'}`}>
+          <div className="flex items-center space-x-3 py-3">
+            {user?.profilePictureUrl ? (
+              <img 
+                src={user.profilePictureUrl} 
+                alt={user.name} 
+                className="h-10 w-10 rounded-full object-cover"
+              />
+            ) : (
+              <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
+                <User className="h-6 w-6 text-indigo-600 dark:text-indigo-300" />
+              </div>
+            )}
+            <div className="flex flex-col">
+              <span className="font-medium">{user?.name}</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">@{user?.username}</span>
+            </div>
+            <button 
+              onClick={() => setIsEditingProfile(true)}
+              className="ml-auto p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 transition"
+              title="Edit Profile"
+            >
+              <Edit className="h-5 w-5" />
+            </button>
+          </div>
+          
+          <nav className="space-y-1 py-2">
+            <Link to="/" className="block px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700">
+              Home
+            </Link>
+            <Link to={`/profile/${user?.username}`} className="block px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700">
+              Profile
+            </Link>
+            <Link to="/search" className="block px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700">
+              Search
+            </Link>
+            <Link to="/notifications" className="block px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700">
+              Notifications
+            </Link>
+            <Link to="/my-plans" className="block px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700">
+              My Learning Plans
+            </Link>
+            <button 
+              onClick={logout}
+              className="block w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-red-500"
+            >
+              Log Out
+            </button>
+          </nav>
+        </div>
+      )}
+      
+      {isEditingProfile && (
+        <EditProfileForm
+          editedProfile={editedProfile}
+          onCancel={() => setIsEditingProfile(false)}
+          onSave={() => {
+            handleProfileUpdate();
+            setIsEditingProfile(false);
+          }}
+          onChange={handleEditChange}
+          updateSuccess={updateSuccess}
+          updateError={updateError}
+          isSubmitting={isSubmitting}
+        />
+      )}
     </header>
   );
 };

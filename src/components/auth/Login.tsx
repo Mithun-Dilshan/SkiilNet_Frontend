@@ -16,7 +16,6 @@ const Login = () => {
     
     try {
       await login(email, password);
-      // Redirect will be handled by AuthContext
     } catch (err) {
       setError('Failed to sign in. Please check your credentials.');
       console.error(err);

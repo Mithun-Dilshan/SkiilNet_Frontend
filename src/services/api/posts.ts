@@ -204,6 +204,37 @@ const postsApi = {
             handleError(error, 'Error unsaving post');
             throw error;
         }
+    },
+    
+    // Get posts by userId
+    getPostsByUserId: async (userId: string): Promise<Post[]> => {
+        try {
+            const response = await axiosInstance.get(`/posts/user/${userId}`);
+            const data = response.data as { posts?: any[] };
+            
+            if (!data || !data.posts) {
+                return [];
+            }
+            
+            return data.posts.map((post: any) => ({
+                id: post.id,
+                description: post.description,
+                url: post.url,
+                userId: post.userId,
+                date: new Date(post.date).toISOString(),
+                comments: Array.isArray(post.comments) ? post.comments : [],
+                likes: Array.isArray(post.likes) ? post.likes : [],
+                savedByUsers: Array.isArray(post.savedByUsers) ? post.savedByUsers : [],
+                media: post.url ? [{
+                    id: post.id,
+                    type: post.url.toLowerCase().match(/\.(mp4|webm|ogg)$/) ? 'video' : 'image',
+                    url: post.url
+                }] : []
+            }));
+        } catch (error) {
+            handleError(error, 'Error fetching user posts');
+            return [];
+        }
     }
 };
 

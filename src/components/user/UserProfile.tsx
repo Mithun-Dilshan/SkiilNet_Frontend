@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Edit, Settings, Users, BookOpen, Activity, Clock, Heart } from 'lucide-react';
+import { Edit, Settings, Users } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import postsApi, { Post } from '../../services/api/posts';
 import { LearningPlan } from '../learning/LearningPlanCard';
 import { ProgressUpdate } from '../progress/ProgressUpdateCard';
+import UserList from './UserList';
+import { getUserProfileWithStatus } from '../../services/api/users';
 import axios from '../../services/api/axiosConfig';
 
 type UserProfileData = {
@@ -16,12 +18,9 @@ type UserProfileData = {
   bio?: string;
   followers: number;
   following: number;
-  stats: {
-    totalPosts: number;
-    totalLikes: number;
-    totalComments: number;
-  };
   isFollowing: boolean;
+  followerCount?: number;
+  followingCount?: number;
 };
 
 type UserProfileProps = {
@@ -37,7 +36,8 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates, isEditable, o
   const { theme } = useTheme();
   const { user } = useAuth();
   const [isFollowing, setIsFollowing] = useState(userProfile.isFollowing);
-  const [followersCount, setFollowersCount] = useState(userProfile.followers);
+  const [followerCount, setFollowerCount] = useState(userProfile.followerCount || userProfile.followers || 0);
+  const [followingCount, setFollowingCount] = useState(userProfile.followingCount || userProfile.following || 0);
   
   // Determine if this is the current user's profile
   const isCurrentUser = user && (
@@ -45,6 +45,33 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates, isEditable, o
     user.username === userProfile.username || 
     user.email === userProfile.username
   );
+
+  // Fetch updated profile data including correct follower/following counts
+  useEffect(() => {
+    const fetchProfileData = async () => {
+      if (!user) return;
+
+      try {
+        // Use the userId from the profile and the current user's ID to get follow status
+        const profileData = await getUserProfileWithStatus(userProfile.id, user.id);
+        
+        if (profileData) {
+          // Update follower and following counts with data from backend
+          setFollowerCount(profileData.followerCount || 0);
+          setFollowingCount(profileData.followingCount || 0);
+          
+          // Also update follow status if available
+          if (typeof profileData.following === 'boolean' || typeof profileData.isFollowing === 'boolean') {
+            setIsFollowing(profileData.following || profileData.isFollowing || false);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching profile data:", error);
+      }
+    };
+    
+    fetchProfileData();
+  }, [userProfile.id, user]);
   
   const handleFollow = async () => {
     if (!user) {
@@ -56,9 +83,9 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates, isEditable, o
     try {
       // Optimistic UI update
       if (isFollowing) {
-        setFollowersCount(prev => prev - 1);
+        setFollowerCount(prev => Math.max(0, prev - 1));
       } else {
-        setFollowersCount(prev => prev + 1);
+        setFollowerCount(prev => prev + 1);
       }
       setIsFollowing(!isFollowing);
       
@@ -78,9 +105,9 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates, isEditable, o
       // Revert on error
       console.error('Failed to update follow status:', error);
       if (isFollowing) {
-        setFollowersCount(prev => prev + 1);
+        setFollowerCount(prev => prev + 1);
       } else {
-        setFollowersCount(prev => prev - 1);
+        setFollowerCount(prev => Math.max(0, prev - 1));
       }
       setIsFollowing(isFollowing); // Revert back
     }
@@ -150,27 +177,20 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates, isEditable, o
               <p className="mt-2 text-gray-700 dark:text-gray-300">{userProfile.bio}</p>
             )}
             
-            {/* Stats */}
+            {/* Followers/Following */}
             <div className="flex flex-wrap items-center space-x-6 mt-4">
               <div className="flex items-center space-x-1">
                 <Users className="h-5 w-5 text-gray-500 dark:text-gray-400" />
                 <span className="text-sm">
-                  <span className="font-bold">{followersCount}</span> 
+                  <span className="font-bold">{followerCount}</span> 
                   <span className="text-gray-500 dark:text-gray-400"> followers</span>
                 </span>
               </div>
               <div className="flex items-center space-x-1">
                 <Users className="h-5 w-5 text-gray-500 dark:text-gray-400" />
                 <span className="text-sm">
-                  <span className="font-bold">{userProfile.following}</span> 
+                  <span className="font-bold">{followingCount}</span> 
                   <span className="text-gray-500 dark:text-gray-400"> following</span>
-                </span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <BookOpen className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                <span className="text-sm">
-                  <span className="font-bold">{userProfile.stats.totalPosts}</span> 
-                  <span className="text-gray-500 dark:text-gray-400"> posts</span>
                 </span>
               </div>
             </div>
@@ -178,58 +198,9 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates, isEditable, o
         </div>
       </div>
       
-      {/* Additional User Stats Card */}
+      {/* User List Section */}
       <div className={`rounded-xl ${theme === 'dark' ? 'bg-slate-800' : 'bg-white'} shadow-md p-6`}>
-        <h3 className="text-lg font-semibold mb-4">Activity & Stats</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-slate-700' : 'bg-gray-50'}`}>
-            <div className="flex items-center space-x-2 mb-2">
-              <Activity className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-              <h4 className="font-medium">Content</h4>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Total Posts</span>
-                <span className="font-bold">{userProfile.stats.totalPosts}</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-slate-700' : 'bg-gray-50'}`}>
-            <div className="flex items-center space-x-2 mb-2">
-              <Heart className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-              <h4 className="font-medium">Engagement</h4>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Total Likes</span>
-                <span className="font-bold">{userProfile.stats.totalLikes}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Total Comments</span>
-                <span className="font-bold">{userProfile.stats.totalComments}</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-slate-700' : 'bg-gray-50'}`}>
-            <div className="flex items-center space-x-2 mb-2">
-              <Clock className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-              <h4 className="font-medium">Activity</h4>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Member Since</span>
-                <span className="font-bold">Jan 2023</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Last Active</span>
-                <span className="font-bold">Today</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        <UserList className="mt-4" />
       </div>
     </div>
   );

@@ -47,100 +47,89 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const loadUser = async () => {
     try {
       setLoading(true);
-      const userData = await getCurrentUser();
+      const token = localStorage.getItem('token');
       
-      if (userData) {
-        console.log("User data loaded:", userData);
-        setUser(userData);
+      if (!token) {
+        console.log("No auth token available");
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
+      // Try to get user data from API
+      try {
+        const userData = await getCurrentUser();
         
-        // Store the complete user data in localStorage
-        localStorage.setItem('skillnet_user', JSON.stringify({
-          id: userData.id,
-          name: userData.name,
-          email: userData.email,
-          username: userData.username || userData.email.split('@')[0],
-          profilePictureUrl: userData.profilePictureUrl
-        }));
-      } else {
-        console.log("No user data found from API");
-        // Check for stored user data in localStorage
+        if (userData) {
+          console.log("User data loaded from API:", userData);
+          setUser(userData);
+          
+          // Store complete user data in localStorage
+          localStorage.setItem('skillnet_user', JSON.stringify({
+            id: userData.id,
+            name: userData.name,
+            email: userData.email,
+            username: userData.username || userData.email.split('@')[0],
+            profilePictureUrl: userData.profilePictureUrl,
+            bio: userData.bio
+          }));
+        } else {
+          // Fall back to local storage if API doesn't return user data
+          const storedUser = localStorage.getItem('skillnet_user');
+          const userId = localStorage.getItem('userId');
+          
+          if (storedUser) {
+            try {
+              const parsedUser = JSON.parse(storedUser);
+              console.log("Using stored user data from localStorage:", parsedUser.id);
+              setUser(parsedUser as AuthUser);
+            } catch (error) {
+              console.error("Error parsing stored user data:", error);
+              setUser(null);
+            }
+          } else if (userId) {
+            console.log("Only userId available, creating minimal user");
+            setUser({
+              id: userId,
+              name: 'User',
+              email: `${userId}@example.com`,
+              username: userId
+            });
+          } else {
+            setUser(null);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading user from API:", error);
+        
+        // API error, try to use localStorage data
         const storedUser = localStorage.getItem('skillnet_user');
-        const token = localStorage.getItem('token');
         const userId = localStorage.getItem('userId');
         
         if (storedUser) {
           try {
             const parsedUser = JSON.parse(storedUser);
-            console.log("Using stored user data from localStorage:", parsedUser.id);
+            console.log("Using stored user data after API error:", parsedUser.id);
             setUser(parsedUser as AuthUser);
           } catch (error) {
             console.error("Error parsing stored user data:", error);
-            // Create a temporary user if token exists
-            if (token) {
-              console.log("Token found, creating temp user");
-              setUser({
-                id: userId || 'temp-id',
-                name: 'User',
-                email: 'user@example.com',
-                username: userId || 'user'
-              });
-            } else {
-              setUser(null);
-            }
+            setUser(null);
           }
-        } else if (token) {
-          // Create a temporary user if token exists but no stored user data
-          console.log("Token found, creating temp user");
+        } else if (userId) {
+          console.log("API error, using userId to create minimal user");
           setUser({
-            id: userId || 'temp-id',
+            id: userId,
             name: 'User',
-            email: 'user@example.com',
-            username: userId || 'user'
+            email: `${userId}@example.com`,
+            username: userId
           });
         } else {
           setUser(null);
         }
       }
     } catch (error) {
-      console.error("Error loading user:", error);
-      
-      // Check for stored user data in localStorage if API call fails
-      const storedUser = localStorage.getItem('skillnet_user');
-      const token = localStorage.getItem('token');
-      const userId = localStorage.getItem('userId');
-      
-      if (storedUser) {
-        try {
-          const parsedUser = JSON.parse(storedUser);
-          console.log("Using stored user data after API error:", parsedUser.id);
-          setUser(parsedUser as AuthUser);
-        } catch (error) {
-          console.error("Error parsing stored user data:", error);
-          // Create a temporary user if token exists
-          if (token) {
-            console.log("API error but token found, creating temp user");
-            setUser({
-              id: userId || 'temp-id',
-              name: 'User',
-              email: 'user@example.com',
-              username: userId || 'user'
-            });
-          } else {
-            setUser(null);
-          }
-        }
-      } else if (token) {
-        // Create a temporary user if token exists but no stored user data
-        console.log("API error but token found, creating temp user");
-        setUser({
-          id: userId || 'temp-id',
-          name: 'User',
-          email: 'user@example.com',
-          username: userId || 'user'
-        });
-      } else {
-        setUser(null);
-      }
+      console.error("Unexpected error in loadUser:", error);
+      setUser(null);
     } finally {
       setLoading(false);
     }

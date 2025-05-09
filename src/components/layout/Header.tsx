@@ -77,9 +77,9 @@ const Header = () => {
           
           {/* User Menu */}
           <Link to={`/profile/${user?.username}`} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700">
-            {user?.profilePicture ? (
+            {user?.profilePictureUrl ? (
               <img 
-                src={user.profilePicture} 
+                src={user.profilePictureUrl} 
                 alt={user.name} 
                 className="h-6 w-6 rounded-full object-cover"
               />

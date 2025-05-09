@@ -8,6 +8,18 @@ export interface UserProfileApiResponse {
   bio?: string;
   profilePictureUrl?: string;
   fullName?: string;
+  // Activity stats
+  totalPosts?: number;
+  totalLikes?: number;
+  totalComments?: number;
+  // Follow info
+  followerCount?: number;
+  followingCount?: number;
+  isFollowing?: boolean;
+  following?: boolean;  // Added to match backend response format
+  // Activity timestamps
+  createdAt?: string;
+  lastActiveAt?: string;
 }
 
 /**
@@ -21,11 +33,15 @@ export const getUserProfile = async (userId: string): Promise<UserProfileApiResp
     const storedUser = getStoredUserData();
     let localData: UserProfileApiResponse | null = null;
     
+    console.log(`Attempting to get profile for user ID: ${userId}`);
+    
     // If we have matching local data, prepare it for possible use
     if (storedUser && 
         (storedUser.id === userId || 
          storedUser.username?.toLowerCase() === userId.toLowerCase() || 
          storedUser.name?.toLowerCase() === userId.toLowerCase())) {
+      
+      console.log(`Found matching stored user data for ${userId}`);
       
       localData = {
         id: storedUser.id,
@@ -63,19 +79,45 @@ export const getUserProfile = async (userId: string): Promise<UserProfileApiResp
       };
     }
     
+    // Prefer MongoDB ID format if available
+    let apiUserId = userId;
+    
+    // If userId doesn't look like a MongoDB ID but we have a stored ID that does, use that
+    if (!userId.match(/^[0-9a-f]{24}$/i) && storedUser?.id?.match(/^[0-9a-f]{24}$/i) && 
+        (storedUser.name.toLowerCase() === userId.toLowerCase() || 
+         storedUser.username.toLowerCase() === userId.toLowerCase())) {
+      console.log(`Converting name/username to MongoDB ID: ${storedUser.id}`);
+      apiUserId = storedUser.id;
+    }
+    
     try {
       // Make sure we're not sending a user ID with spaces or special characters
-      const sanitizedUserId = encodeURIComponent(userId.trim());
+      const sanitizedUserId = encodeURIComponent(apiUserId.trim());
       
       // The path should match exactly what the backend expects
+      console.log(`Making API call to: /users/${sanitizedUserId}/profile`);
+      
+      // Set specific axios options to prevent redirect to OAuth
       const response = await axios.get(`/users/${sanitizedUserId}/profile`, {
-        timeout: 8000, // Add timeout to prevent hanging on redirect
+        timeout: 10000, // Add timeout to prevent hanging
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest', // Add header to signal this is an AJAX request
+        }
       });
       
       if (response.data) {
+        console.log(`API returned profile data:`, response.data);
         return response.data as UserProfileApiResponse;
       }
     } catch (apiError: any) {
+      // Check if it's a redirect to OAuth
+      if (apiError.response && apiError.response.status === 302) {
+        console.error('Redirect to OAuth detected - using local data instead');
+        if (localData) {
+          return localData;
+        }
+      }
+      
       // If API call fails and we have local data, use it
       if (localData) {
         console.log('API call failed, using local data instead:', apiError?.message);
@@ -143,6 +185,184 @@ export const getCurrentUserProfile = async (): Promise<UserProfileApiResponse | 
 };
 
 /**
+ * Get all users
+ * @returns List of user profiles or empty array if there was an error
+ */
+export const getAllUsers = async (): Promise<UserProfileApiResponse[]> => {
+  try {
+    console.log('Fetching all users');
+    
+    // Check if we have a token before attempting API call
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.log('No authentication token - returning empty list');
+      return [];
+    }
+    
+    // Get current user ID if available
+    const storedUser = getStoredUserData();
+    const currentUserId = storedUser?.id || '';
+    
+    // Add currentUserId as query parameter if available
+    const url = currentUserId ? `/users?currentUserId=${currentUserId}` : '/users';
+    
+    // Increase timeout to 20 seconds
+    const response = await axios.get(url, {
+      timeout: 20000, // Longer timeout (20 seconds)
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+      }
+    });
+    
+    if (response.data && Array.isArray(response.data)) {
+      console.log(`API returned ${response.data.length} users`);
+      const users = response.data as UserProfileApiResponse[];
+      
+      // Ensure all users have consistent follow status fields
+      users.forEach(user => {
+        if (typeof user.following === 'boolean' && user.isFollowing === undefined) {
+          user.isFollowing = user.following;
+        } else if (typeof user.isFollowing === 'boolean' && user.following === undefined) {
+          user.following = user.isFollowing;
+        }
+      });
+      
+      return users;
+    }
+    
+    return [];
+  } catch (error: any) {
+    // If we get a timeout error, try again without the currentUserId
+    if (error.code === 'ECONNABORTED' && error.message.includes('timeout')) {
+      console.log('Request timed out, retrying without currentUserId...');
+      try {
+        // Retry with a simpler request
+        const retryResponse = await axios.get('/users', {
+          timeout: 10000,
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+          }
+        });
+        
+        if (retryResponse.data && Array.isArray(retryResponse.data)) {
+          console.log(`Retry API call returned ${retryResponse.data.length} users`);
+          const users = retryResponse.data as UserProfileApiResponse[];
+          
+          // Ensure all users have consistent follow status fields
+          users.forEach(user => {
+            if (typeof user.following === 'boolean' && user.isFollowing === undefined) {
+              user.isFollowing = user.following;
+            } else if (typeof user.isFollowing === 'boolean' && user.following === undefined) {
+              user.following = user.isFollowing;
+            }
+          });
+          
+          return users;
+        }
+      } catch (retryError) {
+        console.error('Retry attempt also failed:', retryError);
+      }
+    }
+    
+    console.error('Error fetching users:', error);
+    return [];
+  }
+};
+
+/**
+ * Follow a user
+ * @param userId The ID of the user to follow
+ * @returns Object with success status and any error message
+ */
+export const followUser = async (userId: string): Promise<{success: boolean, message?: string}> => {
+  try {
+    console.log(`Attempting to follow user: ${userId}`);
+    
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.warn('No authentication token found. Cannot follow user.');
+      return {success: false, message: 'No authentication token found'};
+    }
+    
+    // Get the current user's ID
+    const storedUser = getStoredUserData();
+    if (!storedUser || !storedUser.id) {
+      console.warn('No current user found. Cannot follow user.');
+      return {success: false, message: 'No current user found'};
+    }
+    
+    // Call the backend follow endpoint with proper ID
+    // Make sure we're using IDs, not usernames
+    const followerId = storedUser.id;
+    
+    console.log(`Making follow request with follower ID: ${followerId} and target ID: ${userId}`);
+    
+    const response = await axios.post(`/users/${followerId}/follow?targetUserId=${userId}`, null, {
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+      }
+    });
+    
+    if (response.status === 200) {
+      console.log(`Successfully followed user: ${userId}`);
+      return {success: true};
+    } else {
+      console.error('Follow request failed:', response.data);
+      return {success: false, message: 'Server returned an error'};
+    }
+  } catch (error) {
+    console.error('Error following user:', error);
+    return {success: false, message: 'Error following user'};
+  }
+};
+
+/**
+ * Unfollow a user
+ * @param userId The ID of the user to unfollow
+ * @returns Object with success status and any error message
+ */
+export const unfollowUser = async (userId: string): Promise<{success: boolean, message?: string}> => {
+  try {
+    console.log(`Attempting to unfollow user: ${userId}`);
+    
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.warn('No authentication token found. Cannot unfollow user.');
+      return {success: false, message: 'No authentication token found'};
+    }
+    
+    // Get the current user's ID
+    const storedUser = getStoredUserData();
+    if (!storedUser || !storedUser.id) {
+      console.warn('No current user found. Cannot unfollow user.');
+      return {success: false, message: 'No current user found'};
+    }
+    
+    // Use proper IDs for both follower and target
+    const followerId = storedUser.id;
+    
+    console.log(`Making unfollow request with follower ID: ${followerId} and target ID: ${userId}`);
+    
+    const response = await axios.post(`/users/${followerId}/unfollow?targetUserId=${userId}`, null, {
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+      }
+    });
+    
+    if (response.status === 200) {
+      console.log(`Successfully unfollowed user: ${userId}`);
+      return {success: true};
+    } else {
+      console.error('Unfollow request failed:', response.data);
+      return {success: false, message: 'Server returned an error'};
+    }
+  } catch (error) {
+    console.error('Error unfollowing user:', error);
+    return {success: false, message: 'Error unfollowing user'};
+  }
+};
+
+/**
  * Update a user's profile
  * @param userId The ID of the user to update the profile for
  * @param profileData The profile data to update
@@ -156,11 +376,18 @@ export const updateUserProfile = async (
     fullName?: string;
   }
 ): Promise<UserProfileApiResponse | null> => {
+  console.log(`Attempting to update profile for user ID: ${userId}`);
+  
   // Always update localStorage first for immediate feedback
   const storedUser = getStoredUserData();
   let localData: UserProfileApiResponse | null = null;
   
-  if (storedUser && storedUser.id === userId) {
+  if (storedUser && 
+      (storedUser.id === userId || 
+       storedUser.username?.toLowerCase() === userId.toLowerCase() || 
+       storedUser.name?.toLowerCase() === userId.toLowerCase())) {
+    console.log(`Found matching stored user data for update: ${userId}`);
+    
     // Update localStorage first (optimistic update)
     const updatedUser = {
       ...storedUser,
@@ -170,6 +397,7 @@ export const updateUserProfile = async (
     };
     
     localStorage.setItem('skillnet_user', JSON.stringify(updatedUser));
+    console.log(`Updated localStorage with new data`);
     
     // Create local data response
     localData = {
@@ -200,11 +428,16 @@ export const updateUserProfile = async (
     const sanitizedUserId = encodeURIComponent(userId.trim());
     
     // Try the API update
+    console.log(`Making API update call to: /users/${sanitizedUserId}/profile`);
     const response = await axios.put(`/users/${sanitizedUserId}/profile`, profileData, {
-      timeout: 8000 // Add timeout to prevent hanging
+      timeout: 10000, // Add timeout to prevent hanging
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest', // Add header to signal this is an AJAX request
+      }
     });
     
     if (response.data) {
+      console.log(`API update successful:`, response.data);
       return response.data as UserProfileApiResponse;
     }
     
@@ -224,6 +457,57 @@ export const updateUserProfile = async (
       return localData;
     }
     
+    return null;
+  }
+};
+
+/**
+ * Get a user's profile with follow status information
+ * @param userId The ID of the user to fetch the profile for
+ * @param currentUserId The ID of the current user (to check follow status)
+ * @returns User profile data with follow status or null if there was an error
+ */
+export const getUserProfileWithStatus = async (
+  userId: string,
+  currentUserId: string
+): Promise<UserProfileApiResponse | null> => {
+  try {
+    console.log(`Getting profile with follow status for user: ${userId}`);
+    
+    // Check if we have a token before attempting API call
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.log('No authentication token - skipping API call');
+      return null;
+    }
+    
+    const response = await axios.get(`/users/${userId}/profile-with-status?currentUserId=${currentUserId}`, {
+      timeout: 10000,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+      }
+    });
+    
+    if (response.data) {
+      console.log(`Received profile with follow status:`, response.data);
+      
+      // Ensure consistent field naming by mapping backend fields to our interface
+      const profileData = response.data as UserProfileApiResponse;
+      
+      // Make sure both fields are set - this ensures compatibility with any component
+      // using either isFollowing or following field
+      if (typeof profileData.following === 'boolean' && profileData.isFollowing === undefined) {
+        profileData.isFollowing = profileData.following;
+      } else if (typeof profileData.isFollowing === 'boolean' && profileData.following === undefined) {
+        profileData.following = profileData.isFollowing;
+      }
+      
+      return profileData;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error fetching user profile with status:', error);
     return null;
   }
 }; 

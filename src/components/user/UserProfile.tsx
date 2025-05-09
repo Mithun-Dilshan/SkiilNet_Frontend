@@ -1,14 +1,15 @@
-import { useState } from 'react';
+
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Edit, Settings, Users, BookOpen, Activity, Clock, Heart, Plus } from 'lucide-react';
+import { Edit, Settings, Users } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
-import SkillPostCard, { Post } from '../posts/SkillPostCard';
-import LearningPlanCard, { LearningPlan } from '../learning/LearningPlanCard';
-import ProgressUpdateCard, { ProgressUpdate } from '../progress/ProgressUpdateCard';
-import EditProfileModal from '../modals/EditProfileModal';
-import CreatePostModal from '../modals/CreatePostModal';
-import CreateLearningPlanModal from '../modals/CreateLearningPlanModal';
+import postsApi, { Post } from '../../services/api/posts';
+import { LearningPlan } from '../learning/LearningPlanCard';
+import { ProgressUpdate } from '../progress/ProgressUpdateCard';
+import UserList from './UserList';
+import { getUserProfileWithStatus } from '../../services/api/users';
+import axios from '../../services/api/axiosConfig';
 
 type UserProfileData = {
   id: string;
@@ -18,12 +19,9 @@ type UserProfileData = {
   bio?: string;
   followers: number;
   following: number;
-  stats: {
-    totalPosts: number;
-    totalLikes: number;
-    totalComments: number;
-  };
   isFollowing: boolean;
+  followerCount?: number;
+  followingCount?: number;
 };
 
 type UserProfileProps = {
@@ -39,12 +37,48 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates, isEditable, o
   const { theme } = useTheme();
   const { user } = useAuth();
   const [isFollowing, setIsFollowing] = useState(userProfile.isFollowing);
-  const [followersCount, setFollowersCount] = useState(userProfile.followers);
-  const [showEditProfile, setShowEditProfile] = useState(false);
-  const [showCreatePost, setShowCreatePost] = useState(false);
-  const [showCreatePlans, setShowCreatePlans] = useState(false);
+  const [followerCount, setFollowerCount] = useState(userProfile.followerCount || userProfile.followers || 0);
+  const [followingCount, setFollowingCount] = useState(userProfile.followingCount || userProfile.following || 0);
   
-  const isCurrentUser = user?.id === userProfile.id;
+  // Ensure we always have a username value
+  const displayUsername = userProfile.username || 
+    userProfile.id?.toLowerCase().replace(/\s+/g, '.') || 
+    userProfile.name?.toLowerCase().replace(/\s+/g, '.') || 
+    'user';
+  
+  // Determine if this is the current user's profile
+  const isCurrentUser = user && (
+    user.id === userProfile.id || 
+    user.username === userProfile.username || 
+    user.email === userProfile.username
+  );
+
+  // Fetch updated profile data including correct follower/following counts
+  useEffect(() => {
+    const fetchProfileData = async () => {
+      if (!user) return;
+
+      try {
+        // Use the userId from the profile and the current user's ID to get follow status
+        const profileData = await getUserProfileWithStatus(userProfile.id, user.id);
+        
+        if (profileData) {
+          // Update follower and following counts with data from backend
+          setFollowerCount(profileData.followerCount || 0);
+          setFollowingCount(profileData.followingCount || 0);
+          
+          // Also update follow status if available
+          if (typeof profileData.following === 'boolean' || typeof profileData.isFollowing === 'boolean') {
+            setIsFollowing(profileData.following || profileData.isFollowing || false);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching profile data:", error);
+      }
+    };
+    
+    fetchProfileData();
+  }, [userProfile.id, user]);
   
   const handleFollow = async () => {
     if (!user) {
@@ -56,9 +90,9 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates, isEditable, o
     try {
       // Optimistic UI update
       if (isFollowing) {
-        setFollowersCount(prev => prev - 1);
+        setFollowerCount(prev => Math.max(0, prev - 1));
       } else {
-        setFollowersCount(prev => prev + 1);
+        setFollowerCount(prev => prev + 1);
       }
       setIsFollowing(!isFollowing);
       
@@ -78,9 +112,9 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates, isEditable, o
       // Revert on error
       console.error('Failed to update follow status:', error);
       if (isFollowing) {
-        setFollowersCount(prev => prev + 1);
+        setFollowerCount(prev => prev + 1);
       } else {
-        setFollowersCount(prev => prev - 1);
+        setFollowerCount(prev => Math.max(0, prev - 1));
       }
       setIsFollowing(isFollowing); // Revert back
     }
@@ -117,7 +151,7 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates, isEditable, o
             {isEditable ? (
               <div className="flex space-x-3">
                 <button 
-                  onClick={() => setShowEditProfile(true)}
+                  onClick={onEditClick}
                   className="px-4 py-2 rounded-full border border-gray-300 dark:border-slate-600 text-sm font-medium flex items-center space-x-1 hover:bg-gray-100 dark:hover:bg-slate-700 transition"
                 >
                   <Edit className="h-4 w-4" />
@@ -144,199 +178,37 @@ const UserProfile = ({ userProfile, posts, plans, progressUpdates, isEditable, o
           {/* User Info */}
           <div className="mt-8">
             <h1 className="text-2xl font-bold">{userProfile.name}</h1>
-            <p className="text-gray-500 dark:text-gray-400">@{userProfile.username}</p>
+            <p className="text-gray-500 dark:text-gray-400">@{displayUsername}</p>
             
             {userProfile.bio && (
               <p className="mt-2 text-gray-700 dark:text-gray-300">{userProfile.bio}</p>
             )}
             
-            {/* Stats */}
+            {/* Followers/Following */}
             <div className="flex flex-wrap items-center space-x-6 mt-4">
               <div className="flex items-center space-x-1">
                 <Users className="h-5 w-5 text-gray-500 dark:text-gray-400" />
                 <span className="text-sm">
-                  <span className="font-bold">{followersCount}</span> 
+                  <span className="font-bold">{followerCount}</span> 
                   <span className="text-gray-500 dark:text-gray-400"> followers</span>
                 </span>
               </div>
               <div className="flex items-center space-x-1">
                 <Users className="h-5 w-5 text-gray-500 dark:text-gray-400" />
                 <span className="text-sm">
-                  <span className="font-bold">{userProfile.following}</span> 
+                  <span className="font-bold">{followingCount}</span> 
                   <span className="text-gray-500 dark:text-gray-400"> following</span>
                 </span>
               </div>
-              <div className="flex items-center space-x-1">
-                <BookOpen className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                <span className="text-sm">
-                  <span className="font-bold">{userProfile.stats.totalPosts}</span> 
-                  <span className="text-gray-500 dark:text-gray-400"> posts</span>
-                </span>
-              </div>
             </div>
           </div>
         </div>
       </div>
       
-      {/* Create Post Button (only shown on posts tab for current user) */}
-      {isCurrentUser && activeTab === 'posts' && (
-        <button
-          onClick={() => setShowCreatePost(true)}
-          className="w-full py-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition flex items-center justify-center space-x-2"
-        >
-          <Plus className="h-5 w-5" />
-          <span>Create New Post</span>
-        </button>
-      )}
-      
-      {/* Tab Content */}
-      <div className="min-h-[300px]">
-        {activeTab === 'posts' && (
-          <div className="space-y-6">
-            {posts.length === 0 ? (
-              <div className={`rounded-xl ${theme === 'dark' ? 'bg-slate-800' : 'bg-white'} shadow-md p-8 text-center`}>
-                <p className="text-gray-500 dark:text-gray-400">No skill posts yet</p>
-                {isCurrentUser && (
-                  
-                  <button 
-                    onClick={() => setShowCreatePlans(true)}
-                    className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-full text-sm font-medium hover:bg-indigo-700 transition"
-                  >
-                    Create Your First Post
-                  </button>
-                )}
-              </div>
-            ) : (
-              posts.map(post => <SkillPostCard key={post.id} post={post} />)
-            )}
-          </div>
-        )}
-
-         {/* Create Post Button (only shown on posts tab for current user) */}
-      {isCurrentUser && activeTab === 'plans' && (
-        <button
-          onClick={() => setShowCreatePlans(true)}
-          className="w-full py-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition flex items-center justify-center space-x-2"
-        >
-          <Plus className="h-5 w-5" />
-          <span>Create New Plans</span>
-        </button>
-      )}
-        
-        {activeTab === 'plans' && (
-          <div className="space-y-6">
-            {plans.length === 0 ? (
-              <div className={`rounded-xl ${theme === 'dark' ? 'bg-slate-800' : 'bg-white'} shadow-md p-8 text-center`}>
-                <p className="text-gray-500 dark:text-gray-400">No learning plans yet</p>
-                {isCurrentUser && (
-                  <button className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-full text-sm font-medium hover:bg-indigo-700 transition">
-                    Create Your First Plan
-                  </button>
-                )}
-              </div>
-            ) : (
-              plans.map(plan => <LearningPlanCard key={plan.id} plan={plan} />)
-            )}
-          </div>
-        )}
-        
-        {activeTab === 'progress' && (
-          <div className="space-y-6">
-            {progressUpdates.length === 0 ? (
-              <div className={`rounded-xl ${theme === 'dark' ? 'bg-slate-800' : 'bg-white'} shadow-md p-8 text-center`}>
-                <p className="text-gray-500 dark:text-gray-400">No progress updates yet</p>
-                {isCurrentUser && (
-                  <button className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-full text-sm font-medium hover:bg-indigo-700 transition">
-                    Share Your Progress
-                  </button>
-                )}
-              </div>
-            ) : (
-              progressUpdates.map(update => <ProgressUpdateCard key={update.id} update={update} />)
-            )}
-          </div>
-        )}
-        
-        {activeTab === 'stats' && (
-          <div className={`rounded-xl ${theme === 'dark' ? 'bg-slate-800' : 'bg-white'} shadow-md p-6`}>
-            <h3 className="text-lg font-semibold mb-4">Activity & Stats</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-slate-700' : 'bg-gray-50'}`}>
-                <div className="flex items-center space-x-2 mb-2">
-                  <Activity className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                  <h4 className="font-medium">Content</h4>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Total Posts</span>
-                    <span className="font-bold">{userProfile.stats.totalPosts}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Total Plans</span>
-                    <span className="font-bold">{plans.length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Progress Updates</span>
-                    <span className="font-bold">{progressUpdates.length}</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-slate-700' : 'bg-gray-50'}`}>
-                <div className="flex items-center space-x-2 mb-2">
-                  <Heart className="h-5 w-5 text-red-600 dark:text-red-400" />
-                  <h4 className="font-medium">Engagement</h4>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Total Likes</span>
-                    <span className="font-bold">{userProfile.stats.totalLikes}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Total Comments</span>
-                    <span className="font-bold">{userProfile.stats.totalComments}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Avg Likes/Post</span>
-                    <span className="font-bold">
-                      {userProfile.stats.totalPosts > 0 
-                        ? Math.round(userProfile.stats.totalLikes / userProfile.stats.totalPosts) 
-                        : 0}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              
-              <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-slate-700' : 'bg-gray-50'}`}>
-                <div className="flex items-center space-x-2 mb-2">
-                  <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                  <h4 className="font-medium">Activity</h4>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Last Post</span>
-                    <span className="font-bold">2 days ago</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Joined</span>
-                    <span className="font-bold">March 2025</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Weekly Activity</span>
-                    <span className="font-bold">High</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* User List Section */}
+      <div className={`rounded-xl ${theme === 'dark' ? 'bg-slate-800' : 'bg-white'} shadow-md p-6`}>
+        <UserList className="mt-4" />
       </div>
-      
-      {/* Modals */}
-      {showEditProfile && <EditProfileModal onClose={() => setShowEditProfile(false)} />}
-      {showCreatePost && <CreatePostModal onClose={() => setShowCreatePost(false)} />}
-      {showCreatePlans && <CreateLearningPlanModal onClose={() => setShowCreatePlans(false)} />}
     </div>
   );
 };

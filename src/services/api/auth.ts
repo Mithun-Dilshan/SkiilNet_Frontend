@@ -1,6 +1,16 @@
 import axios from './axiosConfig';
 
 // Types
+export interface UserProfile {
+  id?: string;
+  userId?: string;
+  fullName?: string;
+  profilePictureUrl?: string;
+  bio?: string;
+  createdAt?: string;
+  lastActiveAt?: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -8,17 +18,40 @@ export interface User {
   email: string;
   profilePictureUrl?: string;
   bio?: string;
+  oauthProvider?: string;
+  oauthId?: string;
+  userProfile?: UserProfile;
+  followers?: string[];
+  following?: string[];
 }
 
 // Get current authenticated user
 export const getCurrentUser = async (): Promise<User | null> => {
   try {
-    const response = await axios.get('/oauth2/user');
+    // Use the correct OAuth2 endpoint, which may be different from the regular API paths
+    const response = await axios.get('/oauth2/user', {
+      baseURL: 'http://localhost:8080/api' // Explicitly set base URL
+    });
+    
+    // Log the raw response data for debugging
+    console.log('getCurrentUser raw response:', response.data);
+    
     // Check if the response is empty or not a valid user
     if (!response.data || typeof response.data !== 'object' || Object.keys(response.data as object).length === 0) {
+      console.log('getCurrentUser received empty or invalid response');
       return null;
     }
-    return response.data as User;
+    
+    const userData = response.data as User;
+    console.log('getCurrentUser processed user data:', userData);
+    
+    // Save the complete user data to localStorage to ensure it's always up-to-date
+    if (userData && userData.id) {
+      localStorage.setItem('skillnet_user', JSON.stringify(userData));
+      console.log('Updated user data in localStorage from API call');
+    }
+    
+    return userData;
   } catch (error) {
     console.error('Error fetching current user:', error);
     return null;
@@ -44,21 +77,56 @@ export const handleOAuthCallback = (query: string): { token?: string; userId?: s
   if (params.has('token')) {
     const token = params.get('token') as string;
     const encodedUserId = params.get('userId');
+    const encodedUserName = params.get('userName');
     const userId = encodedUserId ? decodeURIComponent(encodedUserId) : undefined;
+    const userName = encodedUserName ? decodeURIComponent(encodedUserName) : userId;
+    
+    console.log('OAuth callback received:', { token, userId, userName });
     
     localStorage.setItem('token', token);
     if (userId) {
       localStorage.setItem('userId', userId);
       console.log('User ID stored in localStorage:', userId);
       
-      // Also store minimal user data
-      localStorage.setItem('skillnet_user', JSON.stringify({
+      // Store user data with all available information
+      const userData: Record<string, any> = {
         id: userId,
-        name: userId,
-        email: `${userId.toLowerCase().replace(/\s+/g, '.')}@example.com`,
-        username: userId.toLowerCase().replace(/\s+/g, '.'),
-      }));
-      console.log('Basic user data stored in localStorage, will be updated with full profile later');
+        name: userName || userId, // Use the actual user name from server
+        email: params.get('email') || `${(userName || userId).toLowerCase().replace(/\s+/g, '.')}@example.com`,
+        username: params.get('username') || (userName || userId).toLowerCase().replace(/\s+/g, '.'),
+      };
+      
+      // Add profile picture URL if available
+      if (params.has('profilePictureUrl')) {
+        const encodedPictureUrl = params.get('profilePictureUrl');
+        userData.profilePictureUrl = encodedPictureUrl ? decodeURIComponent(encodedPictureUrl) : undefined;
+      }
+      
+      // Add any other parameters to userData if they exist
+      params.forEach((value, key) => {
+        if (!['token', 'userId', 'userName', 'profilePictureUrl', 'email'].includes(key)) {
+          userData[key] = value;
+        }
+      });
+      
+      localStorage.setItem('skillnet_user', JSON.stringify(userData));
+      console.log('Complete user data stored in localStorage from OAuth callback:', userData);
+      
+      // Immediately try to fetch complete user data directly by ID
+      setTimeout(async () => {
+        try {
+          const apiUserData = await getUserById(userId);
+          if (apiUserData) {
+            console.log('Fetched complete user data by ID after OAuth callback:', apiUserData);
+          } else {
+            console.warn('Failed to get user data by ID, attempting getCurrentUser...');
+            const oauthUserData = await getCurrentUser();
+            console.log('Fetched user data via getCurrentUser after OAuth callback:', oauthUserData);
+          }
+        } catch (error) {
+          console.error('Failed to fetch additional user data after OAuth callback:', error);
+        }
+      }, 500); // Small delay to ensure token is properly set
     } else {
       console.warn('No user ID received from OAuth callback');
     }
@@ -95,15 +163,9 @@ export const login = async (email: string, password: string): Promise<{ success:
       if (user && user.id) {
         localStorage.setItem('userId', user.id);
         
-        // Store complete user data in localStorage
-        localStorage.setItem('skillnet_user', JSON.stringify({
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          username: user.username || user.email.split('@')[0],
-          profilePictureUrl: user.profilePictureUrl
-        }));
-        console.log('User data stored in localStorage during login:', user.id);
+        // Store ALL user data in localStorage
+        localStorage.setItem('skillnet_user', JSON.stringify(user));
+        console.log('Complete user data stored in localStorage during login:', user.id);
       }
       
       return { success: true, user };
@@ -116,5 +178,42 @@ export const login = async (email: string, password: string): Promise<{ success:
       success: false, 
       error: error.response?.data?.message || 'An error occurred during login' 
     };
+  }
+};
+
+// Get user by ID directly from MongoDB
+export const getUserById = async (userId: string): Promise<User | null> => {
+  if (!userId) {
+    console.error('Cannot fetch user: No user ID provided');
+    return null;
+  }
+
+  try {
+    console.log(`Fetching user data for ID: ${userId}`);
+    
+    const response = await axios.get(`/users/${userId}`);
+    
+    // Log the raw response data for debugging
+    console.log('getUserById raw response:', response.data);
+    
+    // Check if the response is empty or not a valid user
+    if (!response.data || typeof response.data !== 'object' || Object.keys(response.data as object).length === 0) {
+      console.log('getUserById received empty or invalid response');
+      return null;
+    }
+    
+    const userData = response.data as User;
+    console.log('getUserById processed user data:', userData);
+    
+    // Save the complete user data to localStorage to ensure it's always up-to-date
+    if (userData && userData.id) {
+      localStorage.setItem('skillnet_user', JSON.stringify(userData));
+      console.log('Updated user data in localStorage from getUserById');
+    }
+    
+    return userData;
+  } catch (error) {
+    console.error(`Error fetching user with ID ${userId}:`, error);
+    return null;
   }
 }; 

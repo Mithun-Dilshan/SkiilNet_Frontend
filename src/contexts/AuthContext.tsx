@@ -4,7 +4,8 @@ import {
   getCurrentUser, 
   initiateOAuthLogin, 
   login as regularLogin,
-  logout as authLogout 
+  logout as authLogout,
+  getUserById
 } from '../services/api/auth';
 
 // Types
@@ -48,6 +49,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
+      const userId = localStorage.getItem('userId');
       
       if (!token) {
         console.log("No auth token available");
@@ -56,27 +58,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
-      // Try to get user data from API
+      // First try to get user data by ID if we have it
+      if (userId) {
+        try {
+          console.log("Trying to load user by ID:", userId);
+          const userDataById = await getUserById(userId);
+          
+          if (userDataById) {
+            console.log("User data loaded by ID:", userDataById);
+            setUser(userDataById);
+            return; // Success! Early return
+          } else {
+            console.log("Failed to load user by ID, falling back to OAuth endpoint");
+          }
+        } catch (error) {
+          console.error("Error loading user by ID:", error);
+          // Continue to next approach
+        }
+      }
+
+      // Try to get user data from OAuth endpoint
       try {
+        console.log("Trying to load user from OAuth endpoint");
         const userData = await getCurrentUser();
         
         if (userData) {
-          console.log("User data loaded from API:", userData);
+          console.log("User data loaded from OAuth endpoint:", userData);
           setUser(userData);
           
           // Store complete user data in localStorage
-          localStorage.setItem('skillnet_user', JSON.stringify({
-            id: userData.id,
-            name: userData.name,
-            email: userData.email,
-            username: userData.username || userData.email.split('@')[0],
-            profilePictureUrl: userData.profilePictureUrl,
-            bio: userData.bio
-          }));
+          localStorage.setItem('skillnet_user', JSON.stringify(userData));
+          console.log("Complete user data stored in localStorage from API:", userData.id);
         } else {
+          console.log("No data from OAuth endpoint, falling back to localStorage");
           // Fall back to local storage if API doesn't return user data
           const storedUser = localStorage.getItem('skillnet_user');
-          const userId = localStorage.getItem('userId');
           
           if (storedUser) {
             try {
@@ -100,11 +116,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         }
       } catch (error) {
-        console.error("Error loading user from API:", error);
+        console.error("Error loading user from OAuth endpoint:", error);
         
         // API error, try to use localStorage data
         const storedUser = localStorage.getItem('skillnet_user');
-        const userId = localStorage.getItem('userId');
         
         if (storedUser) {
           try {
@@ -145,15 +160,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(result.user);
         console.log("Regular login successful, user set:", result.user);
         
-        // Store complete user data in localStorage
-        localStorage.setItem('skillnet_user', JSON.stringify({
-          id: result.user.id,
-          name: result.user.name,
-          email: result.user.email,
-          username: result.user.username || result.user.email.split('@')[0],
-          profilePictureUrl: result.user.profilePictureUrl
-        }));
-        console.log("User data stored in localStorage during login:", result.user.id);
+        // Store complete user data in localStorage - already handled in auth.ts login function
         
         return { success: true };
       } else {
@@ -248,28 +255,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       if (userData) {
         setUser(userData);
-        // Also update the userId in localStorage with the real user ID from userData
-        localStorage.setItem('userId', userData.id);
-        
         // Store complete user data in localStorage
-        localStorage.setItem('skillnet_user', JSON.stringify({
-          id: userData.id,
-          name: userData.name,
-          email: userData.email,
-          username: userData.username || userData.email.split('@')[0],
-          profilePictureUrl: userData.profilePictureUrl
-        }));
-        console.log("User data stored in localStorage:", userData.id);
-      } else if (userId) {
-        // If no user data from API but we have userId from params
-        console.log("No user data from API, but using userId from params");
-        const userObj = {
-          id: userId,
-          name: userId,
-          email: `${userId.toLowerCase().replace(/\s+/g, '.')}@example.com`,
-          username: userId.toLowerCase().replace(/\s+/g, '.'),
-        };
-        setUser(userObj as AuthUser);
+        localStorage.setItem('skillnet_user', JSON.stringify(userData));
+        console.log("Complete user data stored in localStorage after OAuth callback:", userData.id);
       }
       
       setLoading(false);
@@ -307,13 +295,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (userData) {
         setUser(userData);
         // Store complete user data in localStorage
-        localStorage.setItem('skillnet_user', JSON.stringify({
-          id: userData.id,
-          name: userData.name,
-          email: userData.email,
-          username: userData.username || userData.email.split('@')[0],
-          profilePictureUrl: userData.profilePictureUrl
-        }));
+        localStorage.setItem('skillnet_user', JSON.stringify(userData));
       } else {
         // Check for stored user data in localStorage
         const storedUser = localStorage.getItem('skillnet_user');
